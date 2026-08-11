@@ -1,0 +1,4 @@
+interface:
+  display_name: "Add Test Stand"
+  short_description: "Add a validated logical hardware stand"
+  default_prompt: "Use $add-test-stand to add a new logical test stand to the project inventory."

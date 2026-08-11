@@ -1,0 +1,4 @@
+interface:
+  display_name: "Add Inventory Device"
+  short_description: "Add validated equipment to inventory files"
+  default_prompt: "Use $add-inventory-device to add a physical device to the project inventory."

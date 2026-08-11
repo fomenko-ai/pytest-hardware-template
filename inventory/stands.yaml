@@ -1,0 +1,20 @@
+version: 1
+device_files:
+  - devices.yaml
+
+stands:
+  stand-01:
+    description: Main example hardware test stand
+    capabilities: [smoke, measurement]
+    devices:
+      dut: dut_01
+      analyzer: analyzer_01
+      generator: generator_01
+
+  stand-02:
+    description: Secondary example hardware test stand
+    capabilities: [smoke]
+    devices:
+      dut: dut_02
+      analyzer: analyzer_01
+      generator: generator_01

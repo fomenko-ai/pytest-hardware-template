@@ -1,12 +1,14 @@
+.git/
 .venv/
 .env
 __pycache__/
+*.py[cod]
 .pytest_cache/
 .ruff_cache/
 .coverage
 htmlcov/
-artifacts/*/
-artifacts/latest.log
+artifacts/
 *.egg-info/
 dist/
 build/
+logo.png

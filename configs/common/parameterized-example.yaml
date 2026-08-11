@@ -1,0 +1,16 @@
+collection:
+  - name: parameterized-example
+    test_cases:
+      - test_name: expanded-example
+        input_value:
+          values: [alpha, beta]
+        expected_value: accepted
+        repeat_count:
+          from: 1
+          to: 10
+          step: 1
+
+      - test_name: single-example
+        input_value: stable
+        expected_value: accepted
+        repeat_count: 0

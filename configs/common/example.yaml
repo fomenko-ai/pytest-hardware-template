@@ -1,0 +1,4 @@
+scenario:
+  name: example-lifecycle-check
+  retries: 2
+  expected_state: ready

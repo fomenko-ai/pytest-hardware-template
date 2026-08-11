@@ -1,0 +1,4 @@
+interface:
+  display_name: "Add Project Test"
+  short_description: "Add correctly classified project tests"
+  default_prompt: "Use $add-project-test to add a typed test in the correct project test layer."

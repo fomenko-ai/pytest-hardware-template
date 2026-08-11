@@ -1,0 +1,38 @@
+version: 1
+
+devices:
+  dut_01:
+    type: dut
+    model: example-device-a
+    transport:
+      type: ssh
+      host: 192.0.2.11
+      port: 22
+      credentials: default-ssh
+
+  dut_02:
+    type: dut
+    model: example-device-b
+    transport:
+      type: ssh
+      host: 192.0.2.12
+      port: 22
+      credentials: default-ssh
+
+  analyzer_01:
+    type: analyzer
+    model: example-analyzer
+    transport:
+      type: ssh
+      host: 192.0.2.21
+      port: 22
+      credentials: analyzer-default
+
+  generator_01:
+    type: generator
+    model: example-generator
+    transport:
+      type: ssh
+      host: 192.0.2.22
+      port: 22
+      credentials: generator-default
