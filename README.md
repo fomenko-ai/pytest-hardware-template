@@ -245,7 +245,30 @@ During parallel runs, it points to the session started last; every run still ret
 ./scripts/clean-artifacts.sh
 ```
 
-### Optional AI agent skill
+## AI agent skills
+
+The repository includes focused skills under `skills/` for AI coding agents:
+
+- `add-inventory-device` registers physical equipment in inventory;
+- `add-test-stand` maps equipment to logical stand roles;
+- `add-project-test` creates tests in the appropriate test layer;
+- `adapt-template-change` analyzes and adapts selected changes from this template into a locally
+  customized project.
+
+To migrate a template feature or fix, invoke `adapt-template-change` and describe the desired
+behavior. Optionally provide a commit, pull request, file link, patch, or local template checkout:
+
+```text
+Use $adapt-template-change to adapt the stop-on-fail marker from
+https://github.com/fomenko-ai/pytest-hardware-template into this project.
+Preserve our local pytest reporting behavior.
+```
+
+The skill inspects the source and target projects, proposes compatible implementation options, and
+waits for approval before editing production files. If remote access is unavailable, provide a
+path to a local clone of the template.
+
+### Optional yaml-test-params skill
 
 `yaml-test-params` includes the optional `add-yaml-parametrized-tests` skill for AI coding agents.
 After installing the project dependencies, expose the bundled skill with:

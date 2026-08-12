@@ -205,6 +205,12 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+# Continue
+/.continue/
+
+# Kilo Code
+/.kilocode/
+
 # Marimo
 marimo/_static/
 marimo/_lsp/

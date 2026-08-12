@@ -1,0 +1,4 @@
+interface:
+  display_name: "Adapt Template Change"
+  short_description: "Adapt template changes into local projects"
+  default_prompt: "Use $adapt-template-change to analyze and adapt a selected template change into this project."
