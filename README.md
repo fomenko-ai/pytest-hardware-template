@@ -166,8 +166,21 @@ Available pytest markers are:
 - `smoke`
 - `slow`
 - `destructive`
+- `stop_on_fail`
 
 Marker spelling is checked with `--strict-markers`.
+
+Use `stop_on_fail` when a failure makes the rest of the test session unsafe or meaningless. If
+any setup, call, or teardown phase of a marked test fails, pytest finishes that phase and stops
+the entire session, like `-x`. For a parameterized test, subsequent parameter cases and all later
+tests are therefore not run:
+
+```python
+@pytest.mark.stop_on_fail
+@pytest.mark.parametrize("mode", ["standby", "active", "fault"])
+def test_mode_transition(mode: str) -> None:
+    ...
+```
 
 ## Numbered test steps
 

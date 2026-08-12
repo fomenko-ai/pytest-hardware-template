@@ -1,12 +1,24 @@
 """Pytest command-line integration for inventory-backed hardware tests."""
 
 import logging
+from collections.abc import Generator
 from datetime import datetime
 from pathlib import Path
 
 import pytest
 
 from hardware_test.logging import StepLogger
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(
+    item: pytest.Item,
+) -> Generator[None, pytest.TestReport, pytest.TestReport]:
+    """Stop the session after a marked test phase fails."""
+    report = yield
+    if report.failed and item.get_closest_marker("stop_on_fail") is not None:
+        item.session.shouldstop = f"stopping after failure in {item.nodeid}"
+    return report
 
 
 def pytest_configure(config: pytest.Config) -> None:

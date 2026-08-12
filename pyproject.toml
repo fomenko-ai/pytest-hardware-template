@@ -49,6 +49,7 @@ markers = [
     "smoke: fast checks of essential hardware behavior",
     "slow: long-running tests",
     "destructive: tests that may change or disrupt device state",
+    "stop_on_fail: stop the test session when the marked test fails",
 ]
 
 [tool.ruff]
