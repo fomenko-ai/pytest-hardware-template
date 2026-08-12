@@ -9,6 +9,8 @@ import pytest
 
 from hardware_test.logging import StepLogger
 
+_MUTED_LOG_LEVEL = logging.CRITICAL + 1
+
 
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_makereport(
@@ -23,6 +25,11 @@ def pytest_runtest_makereport(
 
 def pytest_configure(config: pytest.Config) -> None:
     """Write each pytest session log and JUnit report to one artifacts directory."""
+    configured_loggers = config.getini("muted_loggers")
+    cli_loggers = config.getoption("mute_logger", default=[])
+    for logger_name in {*configured_loggers, *cli_loggers}:
+        logging.getLogger(logger_name).setLevel(_MUTED_LOG_LEVEL)
+
     run_id = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S_%f")
     run_dir = config.rootpath / "artifacts" / run_id
     reports_dir = run_dir / "reports"
@@ -39,6 +46,18 @@ def pytest_configure(config: pytest.Config) -> None:
 def pytest_addoption(parser: pytest.Parser) -> None:
     """Register hardware selection options."""
     group = parser.getgroup("hardware-test")
+    parser.addini(
+        "muted_loggers",
+        "logger names muted during pytest runs",
+        type="linelist",
+        default=[],
+    )
+    group.addoption(
+        "--mute-logger",
+        action="append",
+        default=[],
+        help="mute a Python logger during the test run (may be repeated)",
+    )
     group.addoption("--stand", help="inventory stand key used by hardware tests")
     group.addoption(
         "--inventory",

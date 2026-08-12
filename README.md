@@ -239,7 +239,19 @@ test outcomes and durations for CI systems. Both files are created automatically
 options are required. `artifacts/latest.log` is a hard link to the log of the most recently started
 pytest session, so new messages are available through both paths without duplicating file data.
 During parallel runs, it points to the session started last; every run still retains its own
-`pytest.log`. Generated artifacts are ignored by Git. Clear all generated test artifacts with:
+`pytest.log`. Generated artifacts are ignored by Git.
+
+Noisy third-party loggers can be muted for every pytest run with `muted_loggers` in
+`[tool.pytest.ini_options]`. Paramiko is muted by default. Add a logger for one run with a
+repeatable command-line option:
+
+```bash
+uv run pytest --mute-logger urllib3 --mute-logger another_library
+```
+
+Command-line logger names supplement the configured list.
+
+Clear all generated test artifacts with:
 
 ```bash
 ./scripts/clean-artifacts.sh
