@@ -15,3 +15,11 @@ class UnknownStandError(InventoryError):
 
 class FactoryError(HardwareTestError):
     """Raised when runtime objects cannot be constructed."""
+
+
+class TransportError(HardwareTestError):
+    """Raised when a transport cannot connect or complete an operation."""
+
+
+class TransportTimeoutError(TransportError):
+    """Raised when a transport operation exceeds its timeout."""

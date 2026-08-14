@@ -113,9 +113,16 @@ secondary = stand.device("analyzer_secondary", Analyzer)
 ```
 
 `Transport` is a small protocol with `connect`, `close`, and `execute`. The included
-`SSHTransport` encapsulates Paramiko; future projects can add serial or REST implementations
-without changing hardware tests. Example device methods raise `NotImplementedError` until a
-project supplies its own protocol.
+`SSHTransport` encapsulates Paramiko. `PicocomOverSshTransport` uses a persistent SSH PTY channel
+to reach a Linux serial console through `picocom`. Example device methods raise
+`NotImplementedError` until a project supplies its own protocol.
+
+### Linux serial console through picocom
+
+`PicocomOverSshTransport` reaches a board's Linux serial console through `picocom` on a remote SSH
+stand. It detects whether console login is required, manages the shell prompt, executes commands,
+and returns their output and exit status. See the
+[picocom-over-SSH guide](docs/picocom-over-ssh.md) for configuration and operational details.
 
 ### Class-based hardware test helpers
 

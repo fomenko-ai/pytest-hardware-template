@@ -5,7 +5,12 @@ from pathlib import Path
 import pytest
 
 from hardware_test.exceptions import InventoryError, UnknownStandError
-from hardware_test.inventory import Inventory, get_stand, load_inventory
+from hardware_test.inventory import (
+    Inventory,
+    PicocomOverSshTransportConfig,
+    get_stand,
+    load_inventory,
+)
 
 
 def _inventory_data() -> dict[str, object]:
@@ -123,3 +128,39 @@ def test_unknown_stand_lists_available_names() -> None:
         get_stand(inventory, "stand-99")
 
     assert str(raised.value) == ("Unknown stand 'stand-99'.\n\nAvailable stands:\n- stand-01")
+
+
+@pytest.mark.parametrize(
+    "serial_device",
+    [
+        "/dev/serial/by-path/platform-example-port0",
+        "/dev/serial/by-id/usb-example-port0",
+        "/dev/ttyUSB0",
+        "/dev/ttyACM0",
+    ],
+)
+def test_picocom_transport_accepts_explicit_device_paths(serial_device: str) -> None:
+    config = PicocomOverSshTransportConfig(
+        type="picocom_over_ssh",
+        host="192.0.2.10",
+        credentials="default-ssh",
+        serial_device=serial_device,
+        prompt="__HARDWARE_TEST_PROMPT__# ",
+    )
+
+    assert config.serial_device == serial_device
+
+
+@pytest.mark.parametrize(
+    "serial_device",
+    ["ttyUSB0", "/var/serial/ttyUSB0", "/dev", "/dev/../etc/passwd"],
+)
+def test_picocom_transport_rejects_device_paths_outside_dev(serial_device: str) -> None:
+    with pytest.raises(ValueError, match="absolute path below /dev"):
+        PicocomOverSshTransportConfig(
+            type="picocom_over_ssh",
+            host="192.0.2.10",
+            credentials="default-ssh",
+            serial_device=serial_device,
+            prompt="__HARDWARE_TEST_PROMPT__# ",
+        )

@@ -25,3 +25,17 @@ def test_settings_do_not_expose_inventory_hosts(monkeypatch: pytest.MonkeyPatch)
     settings = Settings(_env_file=None)
 
     assert not hasattr(settings, "unknown_host")
+
+
+def test_settings_load_console_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "HARDWARE_TEST_CREDENTIALS__CONSOLE",
+        '{"dut-console":{"username":"root","password":"board-secret"}}',
+    )
+
+    settings = Settings(_env_file=None)
+    credentials = settings.credentials.get_console("dut-console")
+
+    assert credentials is not None
+    assert credentials.username == "root"
+    assert credentials.password.get_secret_value() == "board-secret"

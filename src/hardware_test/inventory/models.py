@@ -1,9 +1,9 @@
 """Pydantic models for declarative inventory data."""
 
-from pathlib import Path
-from typing import Literal, Self
+from pathlib import Path, PurePosixPath
+from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class SshTransportConfig(BaseModel):
@@ -17,7 +17,52 @@ class SshTransportConfig(BaseModel):
     credentials: str
 
 
-TransportConfig = SshTransportConfig
+class PicocomOverSshTransportConfig(BaseModel):
+    """Remote serial-console connection reached through SSH and picocom."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["picocom_over_ssh"]
+    host: str
+    port: int = Field(default=22, ge=1, le=65535)
+    credentials: str
+    serial_device: str
+    baudrate: int = Field(default=115200, gt=0)
+    prompt: str = Field(min_length=1)
+    initial_prompt_suffix: str = Field(default="# ", min_length=1)
+    login_prompt: str = Field(default="login:", min_length=1)
+    password_prompt: str = Field(default="Password:", min_length=1)
+    console_credentials: str | None = None
+
+    @field_validator("serial_device")
+    @classmethod
+    def validate_serial_device(cls, value: str) -> str:
+        """Require one explicit remote device path below /dev."""
+        if any(character in value for character in "\0\r\n"):
+            raise ValueError("serial_device must not contain control characters")
+        path = PurePosixPath(value)
+        if (
+            not path.is_absolute()
+            or path == PurePosixPath("/dev")
+            or not path.is_relative_to("/dev")
+            or ".." in path.parts
+        ):
+            raise ValueError("serial_device must be an absolute path below /dev")
+        return value
+
+    @field_validator("prompt", "initial_prompt_suffix", "login_prompt", "password_prompt")
+    @classmethod
+    def validate_console_marker(cls, value: str) -> str:
+        """Keep console markers suitable for line-oriented synchronization."""
+        if any(character in value for character in "\0\r\n"):
+            raise ValueError("prompt must not contain control characters")
+        return value
+
+
+TransportConfig = Annotated[
+    SshTransportConfig | PicocomOverSshTransportConfig,
+    Field(discriminator="type"),
+]
 
 
 class DeviceConfig(BaseModel):
