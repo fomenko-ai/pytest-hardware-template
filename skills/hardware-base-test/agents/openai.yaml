@@ -1,0 +1,4 @@
+interface:
+  display_name: "Hardware Base Test"
+  short_description: "Create safe reusable hardware test helpers"
+  default_prompt: "Use $hardware-base-test to add or update reusable BaseTest command helpers for hardware tests."

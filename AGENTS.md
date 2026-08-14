@@ -90,6 +90,32 @@ Follow these constraints:
 7. Do not run hardware tests unless the user explicitly requests them and a real stand is ready.
 8. Keep pytest markers registered and run pytest with `--strict-markers`.
 
+### Hardware Base Test
+
+1. Keep the shared `BaseTest` class in `tests/hardware/base.py`; do not expose it from the
+   production `hardware_test` package.
+2. Use `BaseTest` only for class-based hardware tests that repeatedly execute, log, or validate DUT
+   command-line operations. Prefer plain pytest functions when inheritance adds no value.
+3. Implement reusable helpers as instance methods. Do not store a `TestStand`, device, transport,
+   logger, command result, or other mutable runtime state on the class or in globals.
+4. Pass `TestStand` explicitly. Execute commands only through a public device API; never access
+   `device._transport` or construct an SSH client in `BaseTest`.
+5. Keep connection lifecycle in pytest fixtures. `BaseTest` must not connect, close, construct, or
+   configure stands, devices, or transports.
+6. Keep assertions and test-specific expected values in the test layer. Production device APIs
+   return `CommandResult` or domain values and must not assert test expectations.
+7. Use `run_command` and `check_command` separately when a test has intervening logic; use
+   `run_and_check_command` only for the common immediate-check path. Return `CommandResult` so the
+   calling test can perform additional validation.
+8. Treat arbitrary commands as appropriate only when the DUT CLI is itself the tested public
+   interface. Otherwise, hide command strings behind named domain methods on the device.
+9. Log command execution details through the module's standard logger at `INFO` level. Keep
+   numbered `StepLogger` calls in tests and fixtures so they describe significant scenario actions,
+   not internal helper operations. Never pass commands or expected values containing passwords,
+   tokens, or other secrets to helpers that log them.
+10. Unit-test `BaseTest` with fake transports only. Do not require `--stand`, network access, or
+    physical equipment for its tests.
+
 ### Step Logging
 
 1. Log significant test actions through `StepLogger`; do not duplicate its numbering manually.

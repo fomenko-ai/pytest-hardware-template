@@ -62,26 +62,16 @@ hosts file rather than disabling verification.
 
 ## Running tests
 
-Framework tests never need a physical stand:
+Run framework tests:
 
 ```bash
+pytest tests/unit tests/integration
+
+# or, with uv
 uv run pytest tests/unit tests/integration
 ```
 
-Every test has a default timeout of 120 seconds. Override it only when a test is expected to take
-longer:
-
-```python
-import pytest
-
-
-@pytest.mark.timeout(600)
-def test_firmware_update() -> None:
-    ...
-```
-
-The timeout applies to unit, integration, and hardware tests. `pytest-timeout` selects the timeout
-method supported by the current platform so ordinary runs retain the safest available behavior.
+Framework tests never need a physical stand.
 
 Hardware tests use a logical stand key from `inventory/stands.yaml`. Its `device_files` list
 references one or more physical equipment inventories, such as `inventory/devices.yaml`:
@@ -105,6 +95,103 @@ uv run pytest tests/hardware --inventory inventory/stands.yaml --stand stand-02
 Collecting a test marked `hardware` without `--stand` fails with
 `Hardware tests require --stand`. Hardware tests access roles such as `stand.dut`; they do not
 depend on physical IDs or execute SSH commands directly.
+
+## Architecture
+
+`Inventory` models combine the stand and device YAML sources and validate all physical-device
+references. `StandFactory` resolves physical devices, asks `TransportFactory` for connections,
+asks `DeviceFactory` for typed device APIs, and returns a `TestStand` keyed by logical roles. The
+stand only owns already-constructed device objects. It does not read files, environment variables,
+or create transports.
+
+Use conventional roles through `stand.dut`, `stand.analyzer`, and `stand.generator`, or access any
+logical role with a runtime type check:
+
+```python
+primary = stand.device("analyzer_primary", Analyzer)
+secondary = stand.device("analyzer_secondary", Analyzer)
+```
+
+`Transport` is a small protocol with `connect`, `close`, and `execute`. The included
+`SSHTransport` encapsulates Paramiko; future projects can add serial or REST implementations
+without changing hardware tests. Example device methods raise `NotImplementedError` until a
+project supplies its own protocol.
+
+### Class-based hardware test helpers
+
+Use `BaseTest` for ordinary INFO command logging and result assertions in class-based hardware
+tests. Log numbered scenario steps in the test itself and keep preparation and cleanup in `yield`
+fixtures. See the
+[fictional fixture and cleanup example](docs/hardware-base-test.md).
+
+## Pytest markers
+
+Available pytest markers are:
+
+- `unit`
+- `integration`
+- `hardware`
+- `smoke`
+- `slow`
+- `destructive`
+- `stop_on_fail`
+
+Marker spelling is checked with `--strict-markers`.
+
+### Stop on fail
+
+Use `stop_on_fail` when a failure makes the rest of the test session unsafe or meaningless. If
+any setup, call, or teardown phase of a marked test fails, pytest finishes that phase and stops
+the entire session, like `-x`. For a parameterized test, subsequent parameter cases and all later
+tests are therefore not run:
+
+```python
+@pytest.mark.stop_on_fail
+@pytest.mark.parametrize("mode", ["standby", "active", "fault"])
+def test_mode_transition(mode: str) -> None:
+    ...
+```
+
+### Timeout
+
+Every test has a default timeout of 120 seconds. Override it only when a test is expected to take
+longer:
+
+```python
+import pytest
+
+
+@pytest.mark.timeout(600)
+def test_firmware_update() -> None:
+    ...
+```
+
+The timeout applies to unit, integration, and hardware tests. `pytest-timeout` selects the timeout
+method supported by the current platform so ordinary runs retain the safest available behavior.
+
+## Numbered test steps
+
+Use `func_step_logger` to log significant actions with numbering that restarts for every test:
+
+```python
+from hardware_test.logging import StepLogger
+
+
+def test_measurement(func_step_logger: StepLogger) -> None:
+    func_step_logger.log("Configure analyzer")
+    func_step_logger.log("Start measurement")
+```
+
+The corresponding log entries are:
+
+```text
+15:19:28.583 | INFO  | test_measurement                 | Step 1: Configure analyzer
+15:19:28.584 | INFO  | test_measurement                 | Step 2: Start measurement
+```
+
+Use `cls_step_logger` only when numbering must continue between methods of one test class. Step
+messages supplement assertions; they do not replace them. Never include passwords or other
+secrets in log messages.
 
 ## YAML-parameterized scenarios
 
@@ -136,75 +223,6 @@ remain in runtime `settings`.
 
 See the [yaml-test-params documentation](https://github.com/fomenko-ai/yaml-test-params) for the
 available models and parametrization options.
-
-## Architecture
-
-`Inventory` models combine the stand and device YAML sources and validate all physical-device
-references. `StandFactory` resolves physical devices, asks `TransportFactory` for connections,
-asks `DeviceFactory` for typed device APIs, and returns a `TestStand` keyed by logical roles. The
-stand only owns already-constructed device objects. It does not read files, environment variables,
-or create transports.
-
-Use conventional roles through `stand.dut`, `stand.analyzer`, and `stand.generator`, or access any
-logical role with a runtime type check:
-
-```python
-primary = stand.device("analyzer_primary", Analyzer)
-secondary = stand.device("analyzer_secondary", Analyzer)
-```
-
-`Transport` is a small protocol with `connect`, `close`, and `execute`. The included
-`SSHTransport` encapsulates Paramiko; future projects can add serial or REST implementations
-without changing hardware tests. Example device methods raise `NotImplementedError` until a
-project supplies its own protocol.
-
-Available pytest markers are:
-
-- `unit`
-- `integration`
-- `hardware`
-- `smoke`
-- `slow`
-- `destructive`
-- `stop_on_fail`
-
-Marker spelling is checked with `--strict-markers`.
-
-Use `stop_on_fail` when a failure makes the rest of the test session unsafe or meaningless. If
-any setup, call, or teardown phase of a marked test fails, pytest finishes that phase and stops
-the entire session, like `-x`. For a parameterized test, subsequent parameter cases and all later
-tests are therefore not run:
-
-```python
-@pytest.mark.stop_on_fail
-@pytest.mark.parametrize("mode", ["standby", "active", "fault"])
-def test_mode_transition(mode: str) -> None:
-    ...
-```
-
-## Numbered test steps
-
-Use `func_step_logger` to log significant actions with numbering that restarts for every test:
-
-```python
-from hardware_test.logging import StepLogger
-
-
-def test_measurement(func_step_logger: StepLogger) -> None:
-    func_step_logger.log("Configure analyzer")
-    func_step_logger.log("Start measurement")
-```
-
-The corresponding log entries are:
-
-```text
-15:19:28.583 | INFO  | test_measurement                 | Step 1: Configure analyzer
-15:19:28.584 | INFO  | test_measurement                 | Step 2: Start measurement
-```
-
-Use `cls_step_logger` only when numbering must continue between methods of one test class. Step
-messages supplement assertions; they do not replace them. Never include passwords or other
-secrets in log messages.
 
 ## Developer commands
 
