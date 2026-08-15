@@ -25,3 +25,4 @@ class Settings(BaseSettings):
     connect_timeout: float = Field(default=10.0, gt=0)
     ssh_host_key_policy: SshHostKeyPolicy = SshHostKeyPolicy.REJECT
     ssh_known_hosts_path: Path | None = None
+    serial_agent_command: str = Field(default="hardware-serial-helper", min_length=1)

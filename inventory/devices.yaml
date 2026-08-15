@@ -37,6 +37,29 @@ devices:
       password_prompt: "Password:"
       console_credentials: dut-console
 
+  local_pyserial_dut_example:
+    type: dut
+    model: example-local-linux-board
+    transport:
+      type: pyserial
+      serial_device: /dev/serial/by-id/usb-example-local-board-port0
+      baudrate: 115200
+      prompt: "__HARDWARE_TEST_PROMPT__# "
+      console_credentials: dut-console
+
+  remote_pyserial_dut_example:
+    type: dut
+    model: example-remote-linux-board
+    transport:
+      type: pyserial_over_ssh
+      host: 192.0.2.14
+      port: 22
+      credentials: default-ssh
+      serial_device: /dev/serial/by-path/platform-example-usb-0:2:1.0-port0
+      baudrate: 115200
+      prompt: "__HARDWARE_TEST_PROMPT__# "
+      console_credentials: dut-console
+
   analyzer_01:
     type: analyzer
     model: example-analyzer

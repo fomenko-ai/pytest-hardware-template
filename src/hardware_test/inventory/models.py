@@ -63,8 +63,69 @@ class PicocomOverSshTransportConfig(BaseModel):
         return value
 
 
+class PySerialTransportConfig(BaseModel):
+    """Local serial-console connection opened directly through pyserial."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["pyserial"]
+    serial_device: str
+    baudrate: int = Field(default=115200, gt=0)
+    prompt: str = Field(min_length=1)
+    initial_prompt_suffix: str = Field(default="# ", min_length=1)
+    login_prompt: str = Field(default="login:", min_length=1)
+    password_prompt: str = Field(default="Password:", min_length=1)
+    console_credentials: str | None = None
+
+    @field_validator("serial_device")
+    @classmethod
+    def validate_serial_device(cls, value: str) -> str:
+        """Require one explicit local device path below /dev."""
+        return PicocomOverSshTransportConfig.validate_serial_device(value)
+
+    @field_validator("prompt", "initial_prompt_suffix", "login_prompt", "password_prompt")
+    @classmethod
+    def validate_console_marker(cls, value: str) -> str:
+        """Keep console markers suitable for line-oriented synchronization."""
+        return PicocomOverSshTransportConfig.validate_console_marker(value)
+
+
+class PySerialOverSshTransportConfig(BaseModel):
+    """Remote pyserial helper connection reached through SSH."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["pyserial_over_ssh"]
+    host: str
+    port: int = Field(default=22, ge=1, le=65535)
+    credentials: str
+    host_key_policy: SshHostKeyPolicy | None = None
+    serial_device: str
+    baudrate: int = Field(default=115200, gt=0)
+    prompt: str = Field(min_length=1)
+    initial_prompt_suffix: str = Field(default="# ", min_length=1)
+    login_prompt: str = Field(default="login:", min_length=1)
+    password_prompt: str = Field(default="Password:", min_length=1)
+    console_credentials: str | None = None
+
+    @field_validator("serial_device")
+    @classmethod
+    def validate_serial_device(cls, value: str) -> str:
+        """Require one explicit remote device path below /dev."""
+        return PicocomOverSshTransportConfig.validate_serial_device(value)
+
+    @field_validator("prompt", "initial_prompt_suffix", "login_prompt", "password_prompt")
+    @classmethod
+    def validate_console_marker(cls, value: str) -> str:
+        """Keep console markers suitable for line-oriented synchronization."""
+        return PicocomOverSshTransportConfig.validate_console_marker(value)
+
+
 TransportConfig = Annotated[
-    SshTransportConfig | PicocomOverSshTransportConfig,
+    SshTransportConfig
+    | PicocomOverSshTransportConfig
+    | PySerialTransportConfig
+    | PySerialOverSshTransportConfig,
     Field(discriminator="type"),
 ]
 

@@ -5,7 +5,12 @@ from pydantic import SecretStr
 
 from hardware_test.exceptions import FactoryError
 from hardware_test.factory.transport import create_transport
-from hardware_test.inventory import PicocomOverSshTransportConfig, SshTransportConfig
+from hardware_test.inventory import (
+    PicocomOverSshTransportConfig,
+    PySerialOverSshTransportConfig,
+    PySerialTransportConfig,
+    SshTransportConfig,
+)
 from hardware_test.models import SshHostKeyPolicy
 from hardware_test.settings import (
     ConsoleCredentialSettings,
@@ -13,7 +18,12 @@ from hardware_test.settings import (
     Settings,
     SshCredentialSettings,
 )
-from hardware_test.transport import PicocomOverSshTransport, SSHTransport
+from hardware_test.transport import (
+    PicocomOverSshTransport,
+    PySerialOverSshTransport,
+    PySerialTransport,
+    SSHTransport,
+)
 
 
 def _config() -> SshTransportConfig:
@@ -138,3 +148,37 @@ def test_transport_factory_prefers_inventory_host_key_policy() -> None:
 
     assert isinstance(transport, SSHTransport)
     assert transport._host_key_policy is SshHostKeyPolicy.ACCEPT_NEW
+
+
+def test_transport_factory_creates_local_pyserial_without_ssh_credentials() -> None:
+    config = PySerialTransportConfig(
+        type="pyserial",
+        serial_device="/dev/ttyACM0",
+        prompt="__HARDWARE_TEST_PROMPT__# ",
+    )
+
+    transport = create_transport(config, Settings(_env_file=None))
+
+    assert isinstance(transport, PySerialTransport)
+
+
+def test_transport_factory_creates_pyserial_over_ssh() -> None:
+    config = PySerialOverSshTransportConfig(
+        type="pyserial_over_ssh",
+        host="192.0.2.10",
+        credentials="default-ssh",
+        serial_device="/dev/ttyUSB0",
+        prompt="__HARDWARE_TEST_PROMPT__# ",
+    )
+    settings = Settings(
+        _env_file=None,
+        serial_agent_command="/opt/hardware/bin/hardware-serial-helper",
+        credentials=CredentialSettings(
+            default_ssh=SshCredentialSettings(username="tester", password=SecretStr("secret"))
+        ),
+    )
+
+    transport = create_transport(config, settings)
+
+    assert isinstance(transport, PySerialOverSshTransport)
+    assert transport._serial_agent_command == "/opt/hardware/bin/hardware-serial-helper"

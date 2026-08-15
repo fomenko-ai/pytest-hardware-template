@@ -119,19 +119,23 @@ to reach a Linux serial console through `picocom`. Example device methods raise
 [SSH host-key policies](docs/ssh-host-keys.md) for global verification settings and per-device
 overrides.
 
-### Linux serial console through picocom
+### Linux serial console transports
 
 `PicocomOverSshTransport` reaches a board's Linux serial console through `picocom` on a remote SSH
 stand. It detects whether console login is required, manages the shell prompt, executes commands,
 and returns their output and exit status. See the
 [picocom-over-SSH guide](docs/picocom-over-ssh.md) for configuration and operational details.
 
-### Class-based hardware test helpers
+`PySerialTransport` supports a locally attached serial console, while
+`PySerialOverSshTransport` uses the standalone serial agent on a remote stand. See the
+[pyserial transport guide](docs/pyserial-transports.md) for configuration and deployment.
 
-Use `BaseTest` for ordinary INFO command logging and result assertions in class-based hardware
-tests. Log numbered scenario steps in the test itself and keep preparation and cleanup in `yield`
-fixtures. See the
-[fictional fixture and cleanup example](docs/hardware-base-test.md).
+### Class-based hardware tests
+
+Use `BaseTest` for command logging and result validation in class-based hardware tests. Log
+numbered scenario steps in the test itself, and keep setup and cleanup in `yield` fixtures. See the
+[basic stand test example](docs/hardware-base-test.md) and the
+[multi-device stand example](docs/multi-device-stands.md).
 
 ## Pytest markers
 

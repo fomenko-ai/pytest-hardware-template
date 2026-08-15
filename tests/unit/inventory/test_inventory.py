@@ -8,6 +8,9 @@ from hardware_test.exceptions import InventoryError, UnknownStandError
 from hardware_test.inventory import (
     Inventory,
     PicocomOverSshTransportConfig,
+    PySerialOverSshTransportConfig,
+    PySerialTransportConfig,
+    SshTransportConfig,
     get_stand,
     load_inventory,
 )
@@ -68,7 +71,9 @@ stands:
 
     inventory = load_inventory(path)
 
-    assert inventory.devices["device-01"].transport.port == 22
+    transport = inventory.devices["device-01"].transport
+    assert isinstance(transport, SshTransportConfig)
+    assert transport.port == 22
 
 
 def test_load_inventory_wraps_validation_errors(tmp_path: Path) -> None:
@@ -178,3 +183,33 @@ def test_inventory_parses_per_device_host_key_policy() -> None:
     )
 
     assert config.host_key_policy is SshHostKeyPolicy.WARN
+
+
+@pytest.mark.parametrize(
+    ("transport_type", "expected_type"),
+    [
+        ("pyserial", PySerialTransportConfig),
+        ("pyserial_over_ssh", PySerialOverSshTransportConfig),
+    ],
+)
+def test_inventory_parses_pyserial_transports(
+    transport_type: str,
+    expected_type: type[PySerialTransportConfig | PySerialOverSshTransportConfig],
+) -> None:
+    transport: dict[str, object] = {
+        "type": transport_type,
+        "serial_device": "/dev/ttyACM0",
+        "prompt": "__HARDWARE_TEST_PROMPT__# ",
+    }
+    if transport_type == "pyserial_over_ssh":
+        transport.update(host="192.0.2.10", credentials="default-ssh")
+    data = _inventory_data()
+    devices = data["devices"]
+    assert isinstance(devices, dict)
+    device = devices["device-01"]
+    assert isinstance(device, dict)
+    device["transport"] = transport
+
+    inventory = Inventory.model_validate(data)
+
+    assert isinstance(inventory.devices["device-01"].transport, expected_type)
