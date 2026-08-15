@@ -115,7 +115,9 @@ secondary = stand.device("analyzer_secondary", Analyzer)
 `Transport` is a small protocol with `connect`, `close`, and `execute`. The included
 `SSHTransport` encapsulates Paramiko. `PicocomOverSshTransport` uses a persistent SSH PTY channel
 to reach a Linux serial console through `picocom`. Example device methods raise
-`NotImplementedError` until a project supplies its own protocol.
+`NotImplementedError` until a project supplies its own protocol. See
+[SSH host-key policies](docs/ssh-host-keys.md) for global verification settings and per-device
+overrides.
 
 ### Linux serial console through picocom
 

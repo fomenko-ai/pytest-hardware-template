@@ -1,8 +1,11 @@
 """Settings loading tests."""
 
+from pathlib import Path
+
 import pytest
 from pydantic import SecretStr
 
+from hardware_test.models import SshHostKeyPolicy
 from hardware_test.settings import Settings
 
 
@@ -39,3 +42,13 @@ def test_settings_load_console_credentials(monkeypatch: pytest.MonkeyPatch) -> N
     assert credentials is not None
     assert credentials.username == "root"
     assert credentials.password.get_secret_value() == "board-secret"
+
+
+def test_settings_load_ssh_host_key_policy(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HARDWARE_TEST_SSH_HOST_KEY_POLICY", "accept_new")
+    monkeypatch.setenv("HARDWARE_TEST_SSH_KNOWN_HOSTS_PATH", "/etc/hardware-test/known_hosts")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.ssh_host_key_policy is SshHostKeyPolicy.ACCEPT_NEW
+    assert settings.ssh_known_hosts_path == Path("/etc/hardware-test/known_hosts")

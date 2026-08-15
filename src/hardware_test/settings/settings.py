@@ -5,6 +5,7 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from hardware_test.models import SshHostKeyPolicy
 from hardware_test.settings.models import CredentialSettings
 
 
@@ -22,3 +23,5 @@ class Settings(BaseSettings):
     inventory_path: Path = Path("inventory/stands.yaml")
     command_timeout: float = Field(default=30.0, gt=0)
     connect_timeout: float = Field(default=10.0, gt=0)
+    ssh_host_key_policy: SshHostKeyPolicy = SshHostKeyPolicy.REJECT
+    ssh_known_hosts_path: Path | None = None

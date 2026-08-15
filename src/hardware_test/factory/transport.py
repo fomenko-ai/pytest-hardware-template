@@ -13,6 +13,7 @@ def create_transport(config: TransportConfig, settings: Settings) -> Transport:
         raise FactoryError(
             f"SSH credentials '{config.credentials}' are not configured in runtime settings"
         )
+    host_key_policy = config.host_key_policy or settings.ssh_host_key_policy
     if isinstance(config, PicocomOverSshTransportConfig):
         console_credentials = None
         if config.console_credentials is not None:
@@ -27,6 +28,8 @@ def create_transport(config: TransportConfig, settings: Settings) -> Transport:
             port=config.port,
             username=credentials.username,
             password=credentials.password,
+            host_key_policy=host_key_policy,
+            known_hosts_path=settings.ssh_known_hosts_path,
             serial_device=config.serial_device,
             baudrate=config.baudrate,
             prompt=config.prompt,
@@ -47,6 +50,8 @@ def create_transport(config: TransportConfig, settings: Settings) -> Transport:
         port=config.port,
         username=credentials.username,
         password=credentials.password,
+        host_key_policy=host_key_policy,
+        known_hosts_path=settings.ssh_known_hosts_path,
         connect_timeout=settings.connect_timeout,
         command_timeout=settings.command_timeout,
     )

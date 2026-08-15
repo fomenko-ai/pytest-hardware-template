@@ -3,13 +3,15 @@
 import re
 import shlex
 import time
+from pathlib import Path
 from uuid import uuid4
 
 import paramiko
 from pydantic import SecretStr
 
 from hardware_test.exceptions import TransportError, TransportTimeoutError
-from hardware_test.models import CommandResult
+from hardware_test.models import CommandResult, SshHostKeyPolicy
+from hardware_test.transport.host_keys import configure_host_key_policy
 
 _POLL_INTERVAL = 0.01
 
@@ -33,11 +35,15 @@ class PicocomOverSshTransport:
         console_password: SecretStr | None,
         connect_timeout: float,
         command_timeout: float,
+        host_key_policy: SshHostKeyPolicy = SshHostKeyPolicy.REJECT,
+        known_hosts_path: Path | None = None,
     ) -> None:
         self._host = host
         self._port = port
         self._username = username
         self._password = password
+        self._host_key_policy = host_key_policy
+        self._known_hosts_path = known_hosts_path
         self._serial_device = serial_device
         self._baudrate = baudrate
         self._prompt = prompt
@@ -57,8 +63,7 @@ class PicocomOverSshTransport:
             return
 
         client = paramiko.SSHClient()
-        client.load_system_host_keys()
-        client.set_missing_host_key_policy(paramiko.RejectPolicy())
+        configure_host_key_policy(client, self._host_key_policy, self._known_hosts_path)
         try:
             client.connect(
                 hostname=self._host,

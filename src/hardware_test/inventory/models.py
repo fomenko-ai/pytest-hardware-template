@@ -5,6 +5,8 @@ from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from hardware_test.models import SshHostKeyPolicy
+
 
 class SshTransportConfig(BaseModel):
     """Connection data for an SSH endpoint; secrets are referenced by name."""
@@ -15,6 +17,7 @@ class SshTransportConfig(BaseModel):
     host: str
     port: int = Field(default=22, ge=1, le=65535)
     credentials: str
+    host_key_policy: SshHostKeyPolicy | None = None
 
 
 class PicocomOverSshTransportConfig(BaseModel):
@@ -26,6 +29,7 @@ class PicocomOverSshTransportConfig(BaseModel):
     host: str
     port: int = Field(default=22, ge=1, le=65535)
     credentials: str
+    host_key_policy: SshHostKeyPolicy | None = None
     serial_device: str
     baudrate: int = Field(default=115200, gt=0)
     prompt: str = Field(min_length=1)

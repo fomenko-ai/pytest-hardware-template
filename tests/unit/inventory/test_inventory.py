@@ -11,6 +11,7 @@ from hardware_test.inventory import (
     get_stand,
     load_inventory,
 )
+from hardware_test.models import SshHostKeyPolicy
 
 
 def _inventory_data() -> dict[str, object]:
@@ -164,3 +165,16 @@ def test_picocom_transport_rejects_device_paths_outside_dev(serial_device: str) 
             serial_device=serial_device,
             prompt="__HARDWARE_TEST_PROMPT__# ",
         )
+
+
+def test_inventory_parses_per_device_host_key_policy() -> None:
+    config = PicocomOverSshTransportConfig(
+        type="picocom_over_ssh",
+        host="192.0.2.10",
+        credentials="default-ssh",
+        host_key_policy="warn",
+        serial_device="/dev/ttyUSB0",
+        prompt="__HARDWARE_TEST_PROMPT__# ",
+    )
+
+    assert config.host_key_policy is SshHostKeyPolicy.WARN

@@ -6,6 +6,7 @@ from pydantic import SecretStr
 from hardware_test.exceptions import FactoryError
 from hardware_test.factory.transport import create_transport
 from hardware_test.inventory import PicocomOverSshTransportConfig, SshTransportConfig
+from hardware_test.models import SshHostKeyPolicy
 from hardware_test.settings import (
     ConsoleCredentialSettings,
     CredentialSettings,
@@ -101,3 +102,39 @@ def test_transport_factory_rejects_unknown_console_credentials() -> None:
 
     with pytest.raises(FactoryError, match="missing-console"):
         create_transport(config, settings)
+
+
+def test_transport_factory_uses_global_host_key_policy() -> None:
+    settings = Settings(
+        _env_file=None,
+        credentials=CredentialSettings(
+            default_ssh=SshCredentialSettings(username="tester", password=SecretStr("secret"))
+        ),
+        ssh_host_key_policy=SshHostKeyPolicy.WARN,
+    )
+
+    transport = create_transport(_config(), settings)
+
+    assert isinstance(transport, SSHTransport)
+    assert transport._host_key_policy is SshHostKeyPolicy.WARN
+
+
+def test_transport_factory_prefers_inventory_host_key_policy() -> None:
+    config = SshTransportConfig(
+        type="ssh",
+        host="192.0.2.10",
+        credentials="default-ssh",
+        host_key_policy=SshHostKeyPolicy.ACCEPT_NEW,
+    )
+    settings = Settings(
+        _env_file=None,
+        credentials=CredentialSettings(
+            default_ssh=SshCredentialSettings(username="tester", password=SecretStr("secret"))
+        ),
+        ssh_host_key_policy=SshHostKeyPolicy.WARN,
+    )
+
+    transport = create_transport(config, settings)
+
+    assert isinstance(transport, SSHTransport)
+    assert transport._host_key_policy is SshHostKeyPolicy.ACCEPT_NEW

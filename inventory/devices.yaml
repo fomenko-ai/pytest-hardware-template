@@ -18,6 +18,7 @@ devices:
       host: 192.0.2.12
       port: 22
       credentials: default-ssh
+      host_key_policy: accept_new
 
   serial_dut_example:
     type: dut
@@ -27,6 +28,7 @@ devices:
       host: 192.0.2.13
       port: 22
       credentials: default-ssh
+      host_key_policy: reject
       serial_device: /dev/serial/by-path/platform-example-usb-0:1:1.0-port0
       baudrate: 115200
       prompt: "__HARDWARE_TEST_PROMPT__# "
