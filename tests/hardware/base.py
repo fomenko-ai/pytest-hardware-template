@@ -1,9 +1,10 @@
 """Shared command helpers for class-based hardware tests."""
 
 import logging
+import re
 
+from hardware_test.devices import Dut
 from hardware_test.models import CommandResult
-from hardware_test.stand import TestStand
 
 logger = logging.getLogger(__name__)
 
@@ -13,14 +14,14 @@ class BaseTest:
 
     def run_command(
         self,
-        stand: TestStand,
+        dut: Dut,
         command: str,
         *,
         timeout: float | None = None,
     ) -> CommandResult:
         """Log and execute one DUT CLI command."""
         logger.info("Run command: %s", command)
-        result = stand.dut.execute_command(command, timeout)
+        result = dut.execute_command(command, timeout)
         logger.info("Command completed with exit code %d", result.exit_code)
         return result
 
@@ -46,9 +47,51 @@ class BaseTest:
                 f"Expected stderr {expected_stderr!r}, got {result.stderr.strip()!r}"
             )
 
+    def check_stdout_contains(
+        self,
+        result: CommandResult,
+        *expected_texts: str,
+    ) -> None:
+        """Assert that stdout contains every expected text fragment."""
+        for text in expected_texts:
+            assert text in result.stdout, (
+                f"Expected stdout to contain {text!r}, got {result.stdout!r}"
+            )
+
+    def check_stderr_contains(
+        self,
+        result: CommandResult,
+        *expected_texts: str,
+    ) -> None:
+        """Assert that stderr contains every expected text fragment."""
+        for text in expected_texts:
+            assert text in result.stderr, (
+                f"Expected stderr to contain {text!r}, got {result.stderr!r}"
+            )
+
+    def check_stdout_contains_any(
+        self,
+        result: CommandResult,
+        *expected_texts: str,
+    ) -> None:
+        """Assert that stdout contains at least one expected text fragment."""
+        assert any(text in result.stdout for text in expected_texts), (
+            f"Expected stdout to contain any of {expected_texts!r}, got {result.stdout!r}"
+        )
+
+    def check_stdout_matches(
+        self,
+        result: CommandResult,
+        pattern: str,
+    ) -> None:
+        """Assert that stdout contains a regular-expression match."""
+        assert re.search(pattern, result.stdout) is not None, (
+            f"Expected stdout to match {pattern!r}, got {result.stdout!r}"
+        )
+
     def run_and_check_command(
         self,
-        stand: TestStand,
+        dut: Dut,
         command: str,
         *,
         expected_stdout: str | None = None,
@@ -58,7 +101,7 @@ class BaseTest:
     ) -> CommandResult:
         """Run a DUT CLI command, validate it, and return its result."""
         result = self.run_command(
-            stand,
+            dut,
             command,
             timeout=timeout,
         )

@@ -3,6 +3,7 @@
 import logging
 from collections.abc import Generator
 from datetime import datetime
+from inspect import getdoc
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,16 @@ import pytest
 from hardware_test.logging import StepLogger
 
 _MUTED_LOG_LEVEL = logging.CRITICAL + 1
+
+
+def _log_test_class(test_class: type[object] | None) -> None:
+    """Log a test class name and its docstring, if the current test belongs to a class."""
+    if test_class is None:
+        return
+
+    logger = logging.getLogger(test_class.__module__)
+    description = getdoc(test_class) or "No description"
+    logger.info("Test class: %s — %s", test_class.__name__, description)
 
 
 @pytest.hookimpl(wrapper=True)
@@ -79,6 +90,12 @@ def cls_step_logger(request: pytest.FixtureRequest) -> StepLogger:
     """Share step numbering between test methods in one class."""
     logger = logging.getLogger(request.node.name)
     return StepLogger(logger)
+
+
+@pytest.fixture(scope="class", autouse=True)
+def log_test_class(request: pytest.FixtureRequest) -> None:
+    """Log the test class name and description once before its tests."""
+    _log_test_class(request.cls)
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:

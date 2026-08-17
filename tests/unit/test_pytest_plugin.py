@@ -6,7 +6,31 @@ from unittest.mock import Mock
 
 import pytest
 
-from hardware_test.pytest_plugin import pytest_configure, pytest_runtest_makereport
+from hardware_test.pytest_plugin import (
+    _log_test_class,
+    pytest_configure,
+    pytest_runtest_makereport,
+)
+
+
+class DescribedTestClass:
+    """Check recovery after a service restart."""
+
+
+def test_test_class_name_and_description_are_logged(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.INFO, logger=__name__):
+        _log_test_class(DescribedTestClass)
+
+    assert caplog.messages == [
+        "Test class: DescribedTestClass — Check recovery after a service restart."
+    ]
+
+
+def test_function_test_does_not_log_a_class(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.INFO):
+        _log_test_class(None)
+
+    assert caplog.messages == []
 
 
 def test_default_timeout_is_enabled(pytestconfig: pytest.Config) -> None:
