@@ -96,10 +96,11 @@ Follow these constraints:
    production `hardware_test` package.
 2. Use `BaseTest` only for class-based hardware tests that repeatedly execute, log, or validate DUT
    command-line operations. Prefer plain pytest functions when inheritance adds no value.
-3. Implement reusable helpers as instance methods. Do not store a `TestStand`, device, transport,
-   logger, command result, or other mutable runtime state on the class or in globals.
-4. Pass `TestStand` explicitly. Execute commands only through a public device API; never access
-   `device._transport` or construct an SSH client in `BaseTest`.
+3. Implement reusable helpers as class methods. Pass a `Dut` explicitly and do not store a
+   `TestStand`, device, transport, logger, command result, or other mutable runtime state on the
+   class or in globals.
+4. Execute commands only through a public device API; never access `device._transport` or
+   construct an SSH client in `BaseTest`.
 5. Keep connection lifecycle in pytest fixtures. `BaseTest` must not connect, close, construct, or
    configure stands, devices, or transports.
 6. Keep assertions and test-specific expected values in the test layer. Production device APIs
@@ -115,6 +116,14 @@ Follow these constraints:
    tokens, or other secrets to helpers that log them.
 10. Unit-test `BaseTest` with fake transports only. Do not require `--stand`, network access, or
     physical equipment for its tests.
+11. When one hardware-test group needs shared behavior or fixtures, place a local `base.py` in
+    that group's directory. Its custom base class inherits from `tests.hardware.base.BaseTest`.
+12. A group-local base class may define typed class-scoped fixtures as class methods. Put
+    `@pytest.fixture(scope="class")` above `@classmethod`, accept `cls` instead of `self`, and
+    obtain devices from the injected `TestStand` through logical roles. Do not store runtime state
+    on the class; use `yield` with `try/finally` when a fixture changes device state.
+13. In test modules, import the group-specific base under the common local name `BaseTest`, for
+    example `from tests.hardware.recovery.base import RecoveryBaseTest as BaseTest`.
 
 ### Step Logging
 

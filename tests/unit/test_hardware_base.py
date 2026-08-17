@@ -34,8 +34,27 @@ def test_run_command_logs_and_delegates_to_dut(
     assert transport.commands == [("show status", 3.0)]
     assert [record.getMessage() for record in caplog.records] == [
         "Run command: show status",
-        "Command completed with exit code 0",
+        "Command completed with exit code 0; stdout='ready\\n'; stderr=''",
     ]
+
+
+def test_run_command_truncates_long_output_in_log(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = CommandResult(stdout="abcdef", stderr="uvwxyz", exit_code=0)
+    subject, dut, _ = make_subject(expected)
+    monkeypatch.setattr(BaseTest, "_LOG_OUTPUT_LIMIT", 5)
+
+    with caplog.at_level(logging.INFO, logger="tests.hardware.base"):
+        result = subject.run_command(dut, "show verbose status")
+
+    assert result == expected
+    assert caplog.records[-1].getMessage() == (
+        "Command completed with exit code 0; "
+        "stdout='abcde... <1 chars omitted>'; "
+        "stderr='uvwxy... <1 chars omitted>'"
+    )
 
 
 def test_run_and_check_command_returns_matching_result() -> None:

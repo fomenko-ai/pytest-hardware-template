@@ -44,14 +44,14 @@ class TestServiceRecovery(BaseTest):
     ) -> None:
         func_step_logger.log("Restart service")
         self.run_and_check_command(
-            stand,
+            stand.dut,
             "example service restart",
             expected_stdout="restarted",
         )
 
         func_step_logger.log("Check service status")
         result = self.run_command(
-            stand,
+            stand.dut,
             "example service status",
         )
 
@@ -78,6 +78,53 @@ additional logic between execution and the common assertions.
 Do not put credentials or secrets in commands passed to these helpers because `run_command` logs
 the command text. When a command is merely an implementation detail rather than the tested CLI,
 hide it behind a named method on `Dut` and call that domain method from the test.
+
+## Group-specific base classes
+
+When one hardware-test group repeatedly uses the same fixtures or helpers, its directory may have
+a local `base.py`. The local base class inherits from the shared `BaseTest`, while behavior that is
+specific to the group stays out of `tests/hardware/base.py`:
+
+```python
+# tests/hardware/recovery/base.py
+import pytest
+
+from hardware_test.devices import Dut
+from hardware_test.stand import TestStand
+from tests.hardware.base import BaseTest
+
+
+class RecoveryBaseTest(BaseTest):
+    @pytest.fixture(scope="class")
+    @classmethod
+    def dut(cls, stand: TestStand) -> Dut:
+        """Expose the DUT logical role to every test in the class."""
+        return stand.dut
+```
+
+```python
+# tests/hardware/recovery/test_service.py
+import pytest
+
+from hardware_test.devices import Dut
+from tests.hardware.recovery.base import RecoveryBaseTest as BaseTest
+
+
+@pytest.mark.hardware
+class TestServiceRecovery(BaseTest):
+    def test_service_is_ready(self, dut: Dut) -> None:
+        self.run_and_check_command(
+            dut,
+            "example service status",
+            expected_stdout="ready",
+        )
+```
+
+Declare class-scoped fixtures as class methods, with `@pytest.fixture` above `@classmethod`, and
+accept `cls` instead of an instance `self` parameter. They may return devices from `TestStand`, but
+the custom base class must not store the stand, a device, a transport, or other mutable runtime
+state on itself. If a fixture changes device state, use `yield` with `try/finally` and restore that
+state during teardown.
 
 For a stand containing a DUT and additional equipment, see the
 [multi-device stand example](multi-device-stands.md).

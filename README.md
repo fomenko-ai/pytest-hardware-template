@@ -137,6 +137,22 @@ numbered scenario steps in the test itself, and keep setup and cleanup in `yield
 [basic stand test example](docs/hardware-base-test.md) and the
 [multi-device stand example](docs/multi-device-stands.md).
 
+When one test group needs shared fixtures or helpers, add a local `base.py` under that group's
+directory. Its class inherits from the shared `tests.hardware.base.BaseTest` and may expose
+class-scoped fixtures as class methods. Test modules import the specialized class under the common
+local name `BaseTest`:
+
+```python
+import pytest
+
+from tests.hardware.recovery.base import RecoveryBaseTest as BaseTest
+
+
+@pytest.mark.hardware
+class TestServiceRecovery(BaseTest):
+    ...
+```
+
 ## Pytest markers
 
 Available pytest markers are:
@@ -295,6 +311,7 @@ The repository includes focused skills under `skills/` for AI coding agents:
 - `add-inventory-device` registers physical equipment in inventory;
 - `add-test-stand` maps equipment to logical stand roles;
 - `add-project-test` creates tests in the appropriate test layer;
+- `hardware-base-test` creates or updates shared command helpers and class-based hardware tests;
 - `adapt-template-change` analyzes and adapts selected changes from this template into a locally
   customized project.
 

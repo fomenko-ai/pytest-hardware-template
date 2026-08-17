@@ -11,6 +11,7 @@ import pytest
 from hardware_test.logging import StepLogger
 
 _MUTED_LOG_LEVEL = logging.CRITICAL + 1
+logger = logging.getLogger(__name__)
 
 
 def _log_test_class(test_class: type[object] | None) -> None:
@@ -20,15 +21,23 @@ def _log_test_class(test_class: type[object] | None) -> None:
 
     logger = logging.getLogger(test_class.__module__)
     description = getdoc(test_class) or "No description"
-    logger.info("Test class: %s — %s", test_class.__name__, description)
+    header = f" {test_class.__name__} ".center(100, "=")
+    logger.info("\n\n\n%s\n%s\n", header, description)
 
 
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_makereport(
     item: pytest.Item,
 ) -> Generator[None, pytest.TestReport, pytest.TestReport]:
-    """Stop the session after a marked test phase fails."""
+    """Log failed test phases and stop the session when requested."""
     report = yield
+    if report.failed:
+        logger.error(
+            "Test failed: %s [%s]\n%s",
+            item.nodeid,
+            report.when,
+            report.longreprtext,
+        )
     if report.failed and item.get_closest_marker("stop_on_fail") is not None:
         item.session.shouldstop = f"stopping after failure in {item.nodeid}"
     return report

@@ -12,8 +12,20 @@ logger = logging.getLogger(__name__)
 class BaseTest:
     """Log, execute, and validate commands through the DUT domain API."""
 
+    _LOG_OUTPUT_LIMIT = 2_000
+
+    @classmethod
+    def _output_for_log(cls, output: str) -> str:
+        """Limit command output before writing it to the test log."""
+        if len(output) <= cls._LOG_OUTPUT_LIMIT:
+            return output
+
+        omitted_length = len(output) - cls._LOG_OUTPUT_LIMIT
+        return f"{output[: cls._LOG_OUTPUT_LIMIT]}... <{omitted_length} chars omitted>"
+
+    @classmethod
     def run_command(
-        self,
+        cls,
         dut: Dut,
         command: str,
         *,
@@ -22,11 +34,17 @@ class BaseTest:
         """Log and execute one DUT CLI command."""
         logger.info("Run command: %s", command)
         result = dut.execute_command(command, timeout)
-        logger.info("Command completed with exit code %d", result.exit_code)
+        logger.info(
+            "Command completed with exit code %d; stdout=%r; stderr=%r",
+            result.exit_code,
+            cls._output_for_log(result.stdout),
+            cls._output_for_log(result.stderr),
+        )
         return result
 
+    @classmethod
     def check_command(
-        self,
+        cls,
         result: CommandResult,
         *,
         expected_stdout: str | None = None,
@@ -47,8 +65,9 @@ class BaseTest:
                 f"Expected stderr {expected_stderr!r}, got {result.stderr.strip()!r}"
             )
 
+    @classmethod
     def check_stdout_contains(
-        self,
+        cls,
         result: CommandResult,
         *expected_texts: str,
     ) -> None:
@@ -58,8 +77,9 @@ class BaseTest:
                 f"Expected stdout to contain {text!r}, got {result.stdout!r}"
             )
 
+    @classmethod
     def check_stderr_contains(
-        self,
+        cls,
         result: CommandResult,
         *expected_texts: str,
     ) -> None:
@@ -69,8 +89,9 @@ class BaseTest:
                 f"Expected stderr to contain {text!r}, got {result.stderr!r}"
             )
 
+    @classmethod
     def check_stdout_contains_any(
-        self,
+        cls,
         result: CommandResult,
         *expected_texts: str,
     ) -> None:
@@ -79,8 +100,9 @@ class BaseTest:
             f"Expected stdout to contain any of {expected_texts!r}, got {result.stdout!r}"
         )
 
+    @classmethod
     def check_stdout_matches(
-        self,
+        cls,
         result: CommandResult,
         pattern: str,
     ) -> None:
@@ -89,8 +111,9 @@ class BaseTest:
             f"Expected stdout to match {pattern!r}, got {result.stdout!r}"
         )
 
+    @classmethod
     def run_and_check_command(
-        self,
+        cls,
         dut: Dut,
         command: str,
         *,
@@ -100,12 +123,12 @@ class BaseTest:
         timeout: float | None = None,
     ) -> CommandResult:
         """Run a DUT CLI command, validate it, and return its result."""
-        result = self.run_command(
+        result = cls.run_command(
             dut,
             command,
             timeout=timeout,
         )
-        self.check_command(
+        cls.check_command(
             result,
             expected_stdout=expected_stdout,
             expected_stderr=expected_stderr,

@@ -1,20 +1,29 @@
 # Multi-device test stands
 
-This example stand combines a USB-connected board, a conventional analyzer, and a reference meter
-assigned to a project-specific logical role. The remote server remains an access endpoint of the
-board's transport, not a device exposed directly to the test:
+This example stand combines a server, a USB-connected board, a conventional analyzer, and a
+reference meter. The scenario tests both the server and the board, so each is exposed as a
+separate logical role with the `Dut` domain API:
 
 ```text
-TestStand -> dut      -> PicocomOverSshTransport -> SSH server -> picocom -> board
+TestStand -> server   -> SSHTransport -> server
+          -> board    -> PicocomOverSshTransport -> SSH server -> picocom -> board
           -> analyzer -> SSHTransport -> analyzer
           -> reference_meter -> SSHTransport -> reference meter
 ```
 
-The device inventory describes all three physical devices:
+The device inventory describes all four physical devices:
 
 ```yaml
 devices:
-  serial_dut:
+  server_dut:
+    type: dut
+    model: example-linux-server
+    transport:
+      type: ssh
+      host: 192.0.2.13
+      credentials: default-ssh
+
+  serial_board:
     type: dut
     model: example-linux-board
     transport:
@@ -51,38 +60,67 @@ stands:
     description: Example server with a USB-connected board
     capabilities: [smoke, measurement]
     devices:
-      dut: serial_dut
+      server: server_dut
+      board: serial_board
       analyzer: analyzer
       reference_meter: reference_meter
 ```
 
 The session-scoped `stand` fixture constructs all devices, connects their transports, and closes
-them after the test session. Conventional roles use properties such as `stand.dut` and
-`stand.analyzer`. Additional roles use `stand.device()` with an expected domain API type:
+them after the test session. A group-local base class can expose the two `Dut` roles through typed
+class-scoped fixture methods. Put this class in the test group's own `base.py`:
 
 ```python
+# tests/hardware/serial_board/base.py
 import pytest
 
-from hardware_test.devices import Analyzer
-from hardware_test.logging import StepLogger
+from hardware_test.devices import Dut
 from hardware_test.stand import TestStand
 from tests.hardware.base import BaseTest
+
+
+class SerialBoardBaseTest(BaseTest):
+    @pytest.fixture(scope="class")
+    @classmethod
+    def server(cls, stand: TestStand) -> Dut:
+        return stand.device("server", Dut)
+
+    @pytest.fixture(scope="class")
+    @classmethod
+    def board(cls, stand: TestStand) -> Dut:
+        return stand.device("board", Dut)
+```
+
+Tests inherit the local base and request only the roles they use:
+
+```python
+# tests/hardware/serial_board/test_output.py
+import pytest
+
+from hardware_test.devices import Analyzer, Dut
+from hardware_test.logging import StepLogger
+from hardware_test.stand import TestStand
+from tests.hardware.serial_board.base import SerialBoardBaseTest as BaseTest
 
 
 @pytest.mark.hardware
 class TestSerialBoard(BaseTest):
     def test_board_output_level(
         self,
+        server: Dut,
+        board: Dut,
         stand: TestStand,
-        prepared_test_mode: None,
         func_step_logger: StepLogger,
     ) -> None:
         analyzer = stand.analyzer
         assert analyzer is not None
         reference_meter = stand.device("reference_meter", Analyzer)
 
-        func_step_logger.log("Check DUT test output")
-        result = self.run_command(stand, "example output status")
+        func_step_logger.log("Check server readiness")
+        self.run_and_check_command(server, "example server status", expected_stdout="ready")
+
+        func_step_logger.log("Check board test output")
+        result = self.run_command(board, "example output status")
 
         self.check_command(result, expected_stdout="enabled", expected_stderr="")
 
@@ -102,11 +140,10 @@ class TestSerialBoard(BaseTest):
 Run the test by selecting the logical stand:
 
 ```bash
-uv run pytest tests/hardware/test_serial_board.py --stand serial-stand
+uv run pytest tests/hardware/serial_board/test_output.py --stand serial-stand
 ```
 
-Do not expose the SSH server as another test device when it only hosts `picocom`. If a scenario
-must also test or configure the server itself, introduce a dedicated server domain API and map it
-to a separate logical role such as `host`; the test can then obtain it with
-`stand.device("host", ExpectedHostType)`. The board must still be accessed through `stand.dut`,
-without reaching into its transport.
+Expose the SSH server as a logical device only because this scenario tests it directly. When a
+server merely hosts `picocom`, keep it as an endpoint inside the board transport instead. The
+`server` and `board` fixtures resolve public device APIs from `TestStand`; they do not reach into
+the board's transport or take ownership of connection cleanup.
