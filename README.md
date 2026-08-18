@@ -313,7 +313,9 @@ The repository includes focused skills under `skills/` for AI coding agents:
 - `add-project-test` creates tests in the appropriate test layer;
 - `hardware-base-test` creates or updates shared command helpers and class-based hardware tests;
 - `adapt-template-change` analyzes and adapts selected changes from this template into a locally
-  customized project.
+  customized project;
+- `adapt-internal-infrastructure` adapts Docker and CI configuration for private registries,
+  proxies, corporate certificates, and other closed-network requirements.
 
 To migrate a template feature or fix, invoke `adapt-template-change` and describe the desired
 behavior. Optionally provide a commit, pull request, file link, patch, or local template checkout:
@@ -347,6 +349,10 @@ Build the test image from the locked project dependencies:
 ```bash
 docker build -t pytest-hardware-template .
 ```
+
+When building or running behind an organization VPN, HTTPS proxy, private registry, or corporate
+CA, follow the [closed-network Docker guide](docs/closed-network.md). It explains host, build, and
+runtime trust without committing organization-specific configuration or disabling verification.
 
 The default container command runs unit and integration tests only:
 
@@ -382,3 +388,32 @@ docker run --rm \
 Do not bake `.env`, credentials, or `known_hosts` into the image. Device mounts for USB, Serial,
 VISA, and similar transports are platform- and project-specific and should be added only when
 required.
+
+## Continuous integration
+
+The `ci/` directory contains inactive CI templates for GitHub Actions and GitLab CI.
+Copy only the configuration required by the project:
+
+```bash
+# GitHub Actions
+mkdir -p .github/workflows
+cp ci/github-actions.yml .github/workflows/ci.yml
+
+# GitLab CI
+cp ci/gitlab-ci.yml .gitlab-ci.yml
+```
+
+Files under `ci/` are not discovered by either provider, so creating a repository from
+the template does not enable CI or consume hosted-runner minutes automatically. Once activated,
+both configurations execute `./scripts/ci.sh`, so local and hosted checks use the same locked
+dependencies and non-hardware quality gate. Hardware tests are never started implicitly.
+
+GitHub Actions uses a hosted `ubuntu-latest` runner, installs the pinned `uv` release with the
+official `astral-sh/setup-uv` action, and then installs the latest Python 3.14 patch release. It
+does not need a Docker image or a `.python-version` file because the runner and Python version are
+declared directly in the workflow. After copying and pushing the workflow, it starts on every
+push and pull request when GitHub Actions is enabled for the repository; no secrets are required.
+
+GitLab CI uses the official pinned `uv` Docker image, which already contains Python 3.14. A runner
+capable of pulling images from `ghcr.io` must be available to the project. Both providers cache
+`uv` downloads using `uv.lock` as the cache dependency key.

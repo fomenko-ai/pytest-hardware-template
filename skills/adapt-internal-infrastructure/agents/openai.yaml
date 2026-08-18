@@ -1,0 +1,4 @@
+interface:
+  display_name: "Adapt Internal Infrastructure"
+  short_description: "Adapt Docker and CI to internal networks"
+  default_prompt: "Use $adapt-internal-infrastructure to adapt Docker and CI configuration to the organization's internal infrastructure."
