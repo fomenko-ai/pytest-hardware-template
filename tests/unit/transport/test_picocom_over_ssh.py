@@ -9,7 +9,8 @@ import pytest
 from pydantic import SecretStr
 
 from hardware_test.exceptions import TransportError, TransportTimeoutError
-from hardware_test.models import UnixCommand
+from hardware_test.models import SshHostKeyPolicy, UnixCommand
+from hardware_test.transport.config import ConsoleSessionConfig, SshConnectionConfig
 from hardware_test.transport.picocom_over_ssh import PicocomOverSshTransport
 
 PROMPT = "__HARDWARE_TEST_PROMPT__# "
@@ -50,23 +51,40 @@ def _transport(
     console_password: SecretStr | None = None,
 ) -> PicocomOverSshTransport:
     transport = PicocomOverSshTransport(
-        host="192.0.2.10",
-        port=22,
-        username="tester",
-        password=SecretStr("secret"),
+        ssh=_ssh_config(),
         serial_device="/dev/serial/by-path/platform-example-port0",
         baudrate=115200,
-        prompt=PROMPT,
-        initial_prompt_suffix="# ",
-        login_prompt="login:",
-        password_prompt=AUTH_PROMPT,
-        console_username=console_username,
-        console_password=console_password,
+        console=_console_config(console_username, console_password),
         connect_timeout=0.1,
         command_timeout=0.1,
     )
     transport._channel = cast(paramiko.Channel, channel)
     return transport
+
+
+def _ssh_config() -> SshConnectionConfig:
+    return SshConnectionConfig(
+        host="192.0.2.10",
+        port=22,
+        username="tester",
+        password=SecretStr("secret"),
+        host_key_policy=SshHostKeyPolicy.REJECT,
+        known_hosts_path=None,
+    )
+
+
+def _console_config(
+    username: str | None = None,
+    password: SecretStr | None = None,
+) -> ConsoleSessionConfig:
+    return ConsoleSessionConfig(
+        prompt=PROMPT,
+        initial_prompt_suffix="# ",
+        login_prompt="login:",
+        password_prompt=AUTH_PROMPT,
+        username=username,
+        password=password,
+    )
 
 
 def test_execute_reads_packetized_output_and_exit_code() -> None:
@@ -107,18 +125,10 @@ def test_close_sends_picocom_exit_sequence_and_closes_channel() -> None:
 
 def test_picocom_command_quotes_the_serial_device() -> None:
     transport = PicocomOverSshTransport(
-        host="192.0.2.10",
-        port=22,
-        username="tester",
-        password=SecretStr("secret"),
+        ssh=_ssh_config(),
         serial_device="/dev/serial/by-path/example port0",
         baudrate=9600,
-        prompt=PROMPT,
-        initial_prompt_suffix="# ",
-        login_prompt="login:",
-        password_prompt=AUTH_PROMPT,
-        console_username=None,
-        console_password=None,
+        console=_console_config(),
         connect_timeout=0.1,
         command_timeout=0.1,
     )

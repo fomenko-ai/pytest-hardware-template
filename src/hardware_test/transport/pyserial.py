@@ -3,10 +3,10 @@
 from typing import Protocol, cast
 
 import serial
-from pydantic import SecretStr
 
 from hardware_test.exceptions import TransportError, UnsupportedCommandError
 from hardware_test.models import Command, CommandResult, UnixCommand
+from hardware_test.transport.config import ConsoleSessionConfig
 from hardware_test.transport.console import LinuxConsoleSession
 
 
@@ -76,23 +76,13 @@ class PySerialTransport:
         self,
         serial_device: str,
         baudrate: int,
-        prompt: str,
-        initial_prompt_suffix: str,
-        login_prompt: str,
-        password_prompt: str,
-        console_username: str | None,
-        console_password: SecretStr | None,
+        console: ConsoleSessionConfig,
         connect_timeout: float,
         command_timeout: float,
     ) -> None:
         self._serial_device = serial_device
         self._baudrate = baudrate
-        self._prompt = prompt
-        self._initial_prompt_suffix = initial_prompt_suffix
-        self._login_prompt = login_prompt
-        self._password_prompt = password_prompt
-        self._console_username = console_username
-        self._console_password = console_password
+        self._console_config = console
         self._connect_timeout = connect_timeout
         self._command_timeout = command_timeout
         self._channel: PySerialChannel | None = None
@@ -116,12 +106,7 @@ class PySerialTransport:
             channel = PySerialChannel(connection)
             console = LinuxConsoleSession(
                 channel=channel,
-                prompt=self._prompt,
-                initial_prompt_suffix=self._initial_prompt_suffix,
-                login_prompt=self._login_prompt,
-                password_prompt=self._password_prompt,
-                console_username=self._console_username,
-                console_password=self._console_password,
+                config=self._console_config,
                 connect_timeout=self._connect_timeout,
                 command_timeout=self._command_timeout,
             )

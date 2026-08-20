@@ -1,13 +1,12 @@
 """Remote pyserial console accessed through the standalone SSH helper."""
 
 import shlex
-from pathlib import Path
 
 import paramiko
-from pydantic import SecretStr
 
 from hardware_test.exceptions import TransportError, UnsupportedCommandError
-from hardware_test.models import Command, CommandResult, SshHostKeyPolicy, UnixCommand
+from hardware_test.models import Command, CommandResult, UnixCommand
+from hardware_test.transport.config import ConsoleSessionConfig, SshConnectionConfig
 from hardware_test.transport.console import LinuxConsoleSession
 from hardware_test.transport.host_keys import configure_host_key_policy
 from hardware_test.transport.serial_agent import SerialAgentChannel
@@ -18,41 +17,21 @@ class PySerialOverSshTransport:
 
     def __init__(
         self,
-        host: str,
-        port: int,
-        username: str,
-        password: SecretStr,
+        ssh: SshConnectionConfig,
         serial_device: str,
         baudrate: int,
-        prompt: str,
-        initial_prompt_suffix: str,
-        login_prompt: str,
-        password_prompt: str,
-        console_username: str | None,
-        console_password: SecretStr | None,
+        console: ConsoleSessionConfig,
         serial_agent_command: str,
         connect_timeout: float,
         command_timeout: float,
-        host_key_policy: SshHostKeyPolicy = SshHostKeyPolicy.REJECT,
-        known_hosts_path: Path | None = None,
     ) -> None:
-        self._host = host
-        self._port = port
-        self._username = username
-        self._password = password
+        self._ssh = ssh
         self._serial_device = serial_device
         self._baudrate = baudrate
-        self._prompt = prompt
-        self._initial_prompt_suffix = initial_prompt_suffix
-        self._login_prompt = login_prompt
-        self._password_prompt = password_prompt
-        self._console_username = console_username
-        self._console_password = console_password
+        self._console_config = console
         self._serial_agent_command = self._validate_agent_command(serial_agent_command)
         self._connect_timeout = connect_timeout
         self._command_timeout = command_timeout
-        self._host_key_policy = host_key_policy
-        self._known_hosts_path = known_hosts_path
         self._client: paramiko.SSHClient | None = None
         self._channel: SerialAgentChannel | None = None
         self._console: LinuxConsoleSession | None = None
@@ -62,13 +41,13 @@ class PySerialOverSshTransport:
         if self._client is not None:
             return
         client = paramiko.SSHClient()
-        configure_host_key_policy(client, self._host_key_policy, self._known_hosts_path)
+        configure_host_key_policy(client, self._ssh.host_key_policy, self._ssh.known_hosts_path)
         try:
             client.connect(
-                hostname=self._host,
-                port=self._port,
-                username=self._username,
-                password=self._password.get_secret_value(),
+                hostname=self._ssh.host,
+                port=self._ssh.port,
+                username=self._ssh.username,
+                password=self._ssh.password.get_secret_value(),
                 timeout=self._connect_timeout,
             )
             ssh_transport = client.get_transport()
@@ -81,12 +60,7 @@ class PySerialOverSshTransport:
             channel.open(self._serial_device, self._baudrate)
             console = LinuxConsoleSession(
                 channel=channel,
-                prompt=self._prompt,
-                initial_prompt_suffix=self._initial_prompt_suffix,
-                login_prompt=self._login_prompt,
-                password_prompt=self._password_prompt,
-                console_username=self._console_username,
-                console_password=self._console_password,
+                config=self._console_config,
                 connect_timeout=self._connect_timeout,
                 command_timeout=self._command_timeout,
             )

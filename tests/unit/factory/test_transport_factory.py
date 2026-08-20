@@ -126,7 +126,7 @@ def test_transport_factory_uses_global_host_key_policy() -> None:
     transport = create_transport(_config(), settings)
 
     assert isinstance(transport, SSHTransport)
-    assert transport._host_key_policy is SshHostKeyPolicy.WARN
+    assert transport._ssh.host_key_policy is SshHostKeyPolicy.WARN
 
 
 def test_transport_factory_prefers_inventory_host_key_policy() -> None:
@@ -147,7 +147,7 @@ def test_transport_factory_prefers_inventory_host_key_policy() -> None:
     transport = create_transport(config, settings)
 
     assert isinstance(transport, SSHTransport)
-    assert transport._host_key_policy is SshHostKeyPolicy.ACCEPT_NEW
+    assert transport._ssh.host_key_policy is SshHostKeyPolicy.ACCEPT_NEW
 
 
 def test_transport_factory_creates_local_pyserial_without_ssh_credentials() -> None:

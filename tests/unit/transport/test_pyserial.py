@@ -8,6 +8,7 @@ import serial
 from pydantic import SecretStr
 
 from hardware_test.exceptions import TransportError
+from hardware_test.transport.config import ConsoleSessionConfig
 from hardware_test.transport.pyserial import PySerialChannel, PySerialTransport, SerialConnection
 
 AUTH_PROMPT = "Password:"
@@ -87,12 +88,14 @@ def test_pyserial_transport_opens_and_prepares_console(monkeypatch: pytest.Monke
     transport = PySerialTransport(
         serial_device="/dev/ttyACM0",
         baudrate=115200,
-        prompt="__HARDWARE_TEST_PROMPT__# ",
-        initial_prompt_suffix="# ",
-        login_prompt="login:",
-        password_prompt=AUTH_PROMPT,
-        console_username="root",
-        console_password=SecretStr("secret"),
+        console=ConsoleSessionConfig(
+            prompt="__HARDWARE_TEST_PROMPT__# ",
+            initial_prompt_suffix="# ",
+            login_prompt="login:",
+            password_prompt=AUTH_PROMPT,
+            username="root",
+            password=SecretStr("secret"),
+        ),
         connect_timeout=0.1,
         command_timeout=0.1,
     )

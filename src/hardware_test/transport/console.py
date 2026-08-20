@@ -6,10 +6,9 @@ import time
 from typing import Protocol
 from uuid import uuid4
 
-from pydantic import SecretStr
-
 from hardware_test.exceptions import TransportError, TransportTimeoutError
 from hardware_test.models import CommandResult, UnixCommand
+from hardware_test.transport.config import ConsoleSessionConfig
 
 _POLL_INTERVAL = 0.01
 
@@ -35,22 +34,12 @@ class LinuxConsoleSession:
     def __init__(
         self,
         channel: ConsoleChannel,
-        prompt: str,
-        initial_prompt_suffix: str,
-        login_prompt: str,
-        password_prompt: str,
-        console_username: str | None,
-        console_password: SecretStr | None,
+        config: ConsoleSessionConfig,
         connect_timeout: float,
         command_timeout: float,
     ) -> None:
         self._channel = channel
-        self._prompt = prompt
-        self._initial_prompt_suffix = initial_prompt_suffix
-        self._login_prompt = login_prompt
-        self._password_prompt = password_prompt
-        self._console_username = console_username
-        self._console_password = console_password
+        self._config = config
         self._connect_timeout = connect_timeout
         self._command_timeout = command_timeout
 
@@ -58,21 +47,21 @@ class LinuxConsoleSession:
         """Detect the console state, authenticate when needed, and set PS1."""
         self._channel.sendall(b"\r")
         state = self._read_console_state()
-        if state == self._prompt:
+        if state == self._config.prompt:
             return
-        if state == self._login_prompt:
+        if state == self._config.login_prompt:
             self._send_console_username()
             state = self._read_console_state()
-        if state == self._password_prompt:
+        if state == self._config.password_prompt:
             self._send_console_password()
             state = self._read_console_state(redact_password=True)
-        if state in {self._login_prompt, self._password_prompt}:
+        if state in {self._config.login_prompt, self._config.password_prompt}:
             raise TransportError("Device console authentication failed")
-        if state != self._initial_prompt_suffix and state != self._prompt:
+        if state != self._config.initial_prompt_suffix and state != self._config.prompt:
             raise TransportError("Device console did not reach a recognized shell prompt")
-        if state != self._prompt:
-            self._channel.sendall(f"export PS1={shlex.quote(self._prompt)}\r".encode())
-            self._read_until_any((self._prompt,), self._connect_timeout, "shell prompt")
+        if state != self._config.prompt:
+            self._channel.sendall(f"export PS1={shlex.quote(self._config.prompt)}\r".encode())
+            self._read_until_any((self._config.prompt,), self._connect_timeout, "shell prompt")
 
     def execute(self, command: UnixCommand) -> CommandResult:
         """Execute one shell command and parse its output and exit status."""
@@ -83,7 +72,7 @@ class LinuxConsoleSession:
         status_name = f"__hardware_test_status_{uuid4().hex}"
         submitted = (
             f"eval {shlex.quote(command.text)}; {status_name}=$?; "
-            f"PS1={shlex.quote(self._prompt)}; "
+            f"PS1={shlex.quote(self._config.prompt)}; "
             f"printf '\\n{token}%s\\n' \"${status_name}\""
         )
         self._channel.sendall(f"{submitted}\r".encode())
@@ -100,10 +89,10 @@ class LinuxConsoleSession:
 
     def _read_console_state(self, *, redact_password: bool = False) -> str:
         markers = (
-            self._prompt,
-            self._login_prompt,
-            self._password_prompt,
-            self._initial_prompt_suffix,
+            self._config.prompt,
+            self._config.login_prompt,
+            self._config.password_prompt,
+            self._config.initial_prompt_suffix,
         )
         return self._read_until_any(
             markers,
@@ -113,18 +102,18 @@ class LinuxConsoleSession:
         )
 
     def _send_console_username(self) -> None:
-        if self._console_username is None or self._console_password is None:
+        if self._config.username is None or self._config.password is None:
             raise TransportError(
                 "Device console requires login, but console credentials are not configured"
             )
-        self._channel.sendall(f"{self._console_username}\r".encode())
+        self._channel.sendall(f"{self._config.username}\r".encode())
 
     def _send_console_password(self) -> None:
-        if self._console_password is None:
+        if self._config.password is None:
             raise TransportError(
                 "Device console requires a password, but console credentials are not configured"
             )
-        self._channel.sendall(f"{self._console_password.get_secret_value()}\r".encode())
+        self._channel.sendall(f"{self._config.password.get_secret_value()}\r".encode())
 
     def _read_until_any(
         self,
@@ -161,7 +150,7 @@ class LinuxConsoleSession:
                 buffer.extend(self._channel.recv(65535))
                 normalized = self._normalize_bytes(buffer).decode(errors="replace")
                 match = marker.search(normalized)
-                if match is not None and normalized[match.end() :].endswith(self._prompt):
+                if match is not None and normalized[match.end() :].endswith(self._config.prompt):
                     return normalized[: match.start()], int(match.group(1))
             elif self._channel.exit_status_ready():
                 raise TransportError("Console channel closed while a command was running")
@@ -183,6 +172,6 @@ class LinuxConsoleSession:
         return normalized
 
     def _redact_console_password(self, value: str) -> str:
-        if self._console_password is None:
+        if self._config.password is None:
             return value
-        return value.replace(self._console_password.get_secret_value(), "**********")
+        return value.replace(self._config.password.get_secret_value(), "**********")

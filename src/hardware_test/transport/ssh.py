@@ -1,12 +1,10 @@
 """Paramiko-backed SSH transport."""
 
-from pathlib import Path
-
 import paramiko
-from pydantic import SecretStr
 
 from hardware_test.exceptions import UnsupportedCommandError
-from hardware_test.models import Command, CommandResult, SshHostKeyPolicy, TextCommand
+from hardware_test.models import Command, CommandResult, TextCommand
+from hardware_test.transport.config import SshConnectionConfig
 from hardware_test.transport.host_keys import configure_host_key_policy
 
 
@@ -15,21 +13,11 @@ class SSHTransport:
 
     def __init__(
         self,
-        host: str,
-        port: int,
-        username: str,
-        password: SecretStr,
+        ssh: SshConnectionConfig,
         connect_timeout: float,
         command_timeout: float,
-        host_key_policy: SshHostKeyPolicy = SshHostKeyPolicy.REJECT,
-        known_hosts_path: Path | None = None,
     ) -> None:
-        self._host = host
-        self._port = port
-        self._username = username
-        self._password = password
-        self._host_key_policy = host_key_policy
-        self._known_hosts_path = known_hosts_path
+        self._ssh = ssh
         self._connect_timeout = connect_timeout
         self._command_timeout = command_timeout
         self._client: paramiko.SSHClient | None = None
@@ -39,12 +27,12 @@ class SSHTransport:
         if self._client is not None:
             return
         client = paramiko.SSHClient()
-        configure_host_key_policy(client, self._host_key_policy, self._known_hosts_path)
+        configure_host_key_policy(client, self._ssh.host_key_policy, self._ssh.known_hosts_path)
         client.connect(
-            hostname=self._host,
-            port=self._port,
-            username=self._username,
-            password=self._password.get_secret_value(),
+            hostname=self._ssh.host,
+            port=self._ssh.port,
+            username=self._ssh.username,
+            password=self._ssh.password.get_secret_value(),
             timeout=self._connect_timeout,
         )
         self._client = client
