@@ -6,8 +6,8 @@ from pathlib import Path
 import paramiko
 from pydantic import SecretStr
 
-from hardware_test.exceptions import TransportError
-from hardware_test.models import CommandResult, SshHostKeyPolicy
+from hardware_test.exceptions import TransportError, UnsupportedCommandError
+from hardware_test.models import Command, CommandResult, SshHostKeyPolicy, UnixCommand
 from hardware_test.transport.console import LinuxConsoleSession
 from hardware_test.transport.host_keys import configure_host_key_policy
 
@@ -106,9 +106,13 @@ class PicocomOverSshTransport:
             if client is not None:
                 client.close()
 
-    def execute(self, command: str, timeout: float | None = None) -> CommandResult:
+    def execute(self, command: Command[str] | Command[bytes]) -> CommandResult:
         """Execute one shell command and parse its output and exit status."""
-        return self._console_session().execute(command, timeout)
+        if not isinstance(command, UnixCommand):
+            raise UnsupportedCommandError(
+                f"PicocomOverSshTransport does not support {type(command).__name__}"
+            )
+        return self._console_session().execute(command)
 
     def _verify_serial_device(self, client: paramiko.SSHClient) -> None:
         path = shlex.quote(self._serial_device)

@@ -3,10 +3,18 @@
 import pytest
 from pydantic import SecretStr
 
+from hardware_test.models import PowerShellCommand, TextCommand, UnixCommand
 from hardware_test.transport.ssh import SSHTransport
 
 
-def test_ssh_transport_requires_connection() -> None:
+@pytest.mark.parametrize(
+    "command",
+    [
+        pytest.param(UnixCommand(query="uname -a"), id="unix"),
+        pytest.param(PowerShellCommand(query="Get-Service"), id="powershell"),
+    ],
+)
+def test_ssh_transport_requires_connection(command: TextCommand) -> None:
     transport = SSHTransport(
         host="192.0.2.10",
         port=22,
@@ -17,4 +25,4 @@ def test_ssh_transport_requires_connection() -> None:
     )
 
     with pytest.raises(RuntimeError, match="not connected"):
-        transport.execute("example")
+        transport.execute(command)

@@ -5,7 +5,8 @@ from pathlib import Path
 import paramiko
 from pydantic import SecretStr
 
-from hardware_test.models import CommandResult, SshHostKeyPolicy
+from hardware_test.exceptions import UnsupportedCommandError
+from hardware_test.models import Command, CommandResult, SshHostKeyPolicy, TextCommand
 from hardware_test.transport.host_keys import configure_host_key_policy
 
 
@@ -54,13 +55,15 @@ class SSHTransport:
             self._client.close()
             self._client = None
 
-    def execute(self, command: str, timeout: float | None = None) -> CommandResult:
+    def execute(self, command: Command[str] | Command[bytes]) -> CommandResult:
         """Execute a command and capture decoded output and exit status."""
+        if not isinstance(command, TextCommand):
+            raise UnsupportedCommandError(f"SSHTransport does not support {type(command).__name__}")
         if self._client is None:
             raise RuntimeError("SSH transport is not connected")
         _, stdout, stderr = self._client.exec_command(
-            command,
-            timeout=timeout if timeout is not None else self._command_timeout,
+            command.text,
+            timeout=command.timeout if command.timeout is not None else self._command_timeout,
         )
         return CommandResult(
             stdout=stdout.read().decode(),

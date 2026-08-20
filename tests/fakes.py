@@ -1,6 +1,6 @@
 """Reusable in-memory test doubles for transports."""
 
-from hardware_test.models import CommandResult
+from hardware_test.models import Command, CommandResult
 
 
 class FakeTransport:
@@ -9,7 +9,7 @@ class FakeTransport:
     def __init__(self, result: CommandResult | None = None) -> None:
         self.connected = False
         self.closed = False
-        self.commands: list[tuple[str, float | None]] = []
+        self.commands: list[Command[str] | Command[bytes]] = []
         self.result = result or CommandResult(stdout="ok", stderr="", exit_code=0)
 
     def connect(self) -> None:
@@ -18,6 +18,6 @@ class FakeTransport:
     def close(self) -> None:
         self.closed = True
 
-    def execute(self, command: str, timeout: float | None = None) -> CommandResult:
-        self.commands.append((command, timeout))
+    def execute(self, command: Command[str] | Command[bytes]) -> CommandResult:
+        self.commands.append(command)
         return self.result

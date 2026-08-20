@@ -5,7 +5,7 @@ import logging
 import pytest
 
 from hardware_test.devices import Dut
-from hardware_test.models import CommandResult
+from hardware_test.models import CommandResult, UnixCommand
 from tests.fakes import FakeTransport
 from tests.hardware.base import BaseTest
 
@@ -24,14 +24,14 @@ def test_run_command_logs_and_delegates_to_dut(
     subject, dut, transport = make_subject(expected)
 
     with caplog.at_level(logging.INFO, logger="tests.hardware.base"):
+        command = UnixCommand(query="show status", timeout=3.0)
         result = subject.run_command(
             dut,
-            "show status",
-            timeout=3.0,
+            command,
         )
 
     assert result == expected
-    assert transport.commands == [("show status", 3.0)]
+    assert transport.commands == [command]
     assert [record.getMessage() for record in caplog.records] == [
         "Run command: show status",
         "Command completed with exit code 0; stdout='ready\\n'; stderr=''",
@@ -47,7 +47,7 @@ def test_run_command_truncates_long_output_in_log(
     monkeypatch.setattr(BaseTest, "_LOG_OUTPUT_LIMIT", 5)
 
     with caplog.at_level(logging.INFO, logger="tests.hardware.base"):
-        result = subject.run_command(dut, "show verbose status")
+        result = subject.run_command(dut, UnixCommand(query="show verbose status"))
 
     assert result == expected
     assert caplog.records[-1].getMessage() == (
@@ -63,7 +63,7 @@ def test_run_and_check_command_returns_matching_result() -> None:
 
     result = subject.run_and_check_command(
         dut,
-        "show status",
+        UnixCommand(query="show status"),
         expected_stdout="ready",
         expected_stderr="",
     )

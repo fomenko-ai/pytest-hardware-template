@@ -1,14 +1,25 @@
-"""Transport command contract integration test using a fake."""
+"""Device command contract integration tests using a fake transport."""
 
-from hardware_test.models import CommandResult
+import pytest
+
+from hardware_test.devices import Dut
+from hardware_test.models import CommandResult, PowerShellCommand, TextCommand, UnixCommand
 from tests.fakes import FakeTransport
 
 
-def test_fake_transport_preserves_command_result() -> None:
+@pytest.mark.parametrize(
+    "command",
+    [
+        pytest.param(UnixCommand(query="example status", timeout=3.0), id="unix"),
+        pytest.param(PowerShellCommand(query="Get-Service", timeout=3.0), id="powershell"),
+    ],
+)
+def test_dut_preserves_text_command_and_result(command: TextCommand) -> None:
     expected = CommandResult(stdout="ready\n", stderr="", exit_code=0)
     transport = FakeTransport(expected)
+    dut = Dut(transport, "example-model")
 
-    result = transport.execute("example status", timeout=3.0)
+    result = dut.execute_command(command)
 
     assert result == expected
-    assert transport.commands == [("example status", 3.0)]
+    assert transport.commands == [command]

@@ -2,7 +2,7 @@
 
 from typing import Protocol, runtime_checkable
 
-from hardware_test.models import CommandResult
+from hardware_test.models import Command, CommandResult
 
 
 @runtime_checkable
@@ -13,4 +13,4 @@ class Transport(Protocol):
 
     def close(self) -> None: ...
 
-    def execute(self, command: str, timeout: float | None = None) -> CommandResult: ...
+    def execute(self, command: Command[str] | Command[bytes]) -> CommandResult: ...

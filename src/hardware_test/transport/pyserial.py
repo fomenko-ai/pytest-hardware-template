@@ -5,8 +5,8 @@ from typing import Protocol, cast
 import serial
 from pydantic import SecretStr
 
-from hardware_test.exceptions import TransportError
-from hardware_test.models import CommandResult
+from hardware_test.exceptions import TransportError, UnsupportedCommandError
+from hardware_test.models import Command, CommandResult, UnixCommand
 from hardware_test.transport.console import LinuxConsoleSession
 
 
@@ -143,8 +143,12 @@ class PySerialTransport:
         if channel is not None:
             channel.close()
 
-    def execute(self, command: str, timeout: float | None = None) -> CommandResult:
+    def execute(self, command: Command[str] | Command[bytes]) -> CommandResult:
         """Execute one command through the prepared serial console."""
+        if not isinstance(command, UnixCommand):
+            raise UnsupportedCommandError(
+                f"PySerialTransport does not support {type(command).__name__}"
+            )
         if self._console is None:
             raise RuntimeError("PySerial transport is not connected")
-        return self._console.execute(command, timeout)
+        return self._console.execute(command)

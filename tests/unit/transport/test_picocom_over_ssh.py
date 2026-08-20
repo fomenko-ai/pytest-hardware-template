@@ -9,6 +9,7 @@ import pytest
 from pydantic import SecretStr
 
 from hardware_test.exceptions import TransportError, TransportTimeoutError
+from hardware_test.models import UnixCommand
 from hardware_test.transport.picocom_over_ssh import PicocomOverSshTransport
 
 PROMPT = "__HARDWARE_TEST_PROMPT__# "
@@ -80,7 +81,7 @@ def test_execute_reads_packetized_output_and_exit_code() -> None:
 
     channel = FakeChannel(respond)
 
-    result = _transport(channel).execute("uname -a")
+    result = _transport(channel).execute(UnixCommand(query="uname -a"))
 
     assert result.stdout == "Linux board-dev 6.1\n"
     assert result.stderr == ""
@@ -90,7 +91,7 @@ def test_execute_reads_packetized_output_and_exit_code() -> None:
 
 def test_execute_times_out_without_a_response() -> None:
     with pytest.raises(TransportTimeoutError, match="Console command timed out"):
-        _transport(FakeChannel()).execute("uname -a", timeout=0.0)
+        _transport(FakeChannel()).execute(UnixCommand(query="uname -a", timeout=0.0))
 
 
 def test_close_sends_picocom_exit_sequence_and_closes_channel() -> None:

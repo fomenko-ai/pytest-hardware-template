@@ -6,8 +6,8 @@ from pathlib import Path
 import paramiko
 from pydantic import SecretStr
 
-from hardware_test.exceptions import TransportError
-from hardware_test.models import CommandResult, SshHostKeyPolicy
+from hardware_test.exceptions import TransportError, UnsupportedCommandError
+from hardware_test.models import Command, CommandResult, SshHostKeyPolicy, UnixCommand
 from hardware_test.transport.console import LinuxConsoleSession
 from hardware_test.transport.host_keys import configure_host_key_policy
 from hardware_test.transport.serial_agent import SerialAgentChannel
@@ -117,11 +117,15 @@ class PySerialOverSshTransport:
             if client is not None:
                 client.close()
 
-    def execute(self, command: str, timeout: float | None = None) -> CommandResult:
+    def execute(self, command: Command[str] | Command[bytes]) -> CommandResult:
         """Execute one command through the prepared remote serial console."""
+        if not isinstance(command, UnixCommand):
+            raise UnsupportedCommandError(
+                f"PySerialOverSshTransport does not support {type(command).__name__}"
+            )
         if self._console is None:
             raise RuntimeError("PySerial-over-SSH transport is not connected")
-        return self._console.execute(command, timeout)
+        return self._console.execute(command)
 
     @staticmethod
     def _validate_agent_command(value: str) -> str:

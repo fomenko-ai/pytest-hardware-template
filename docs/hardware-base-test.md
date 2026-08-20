@@ -7,12 +7,18 @@ or assertion in the test fails.
 The following fictional example treats the DUT command-line interface as the interface under test.
 Its commands and output do not describe a real device.
 
+`Dut.execute_command` and the shared helpers accept `TextCommand` objects. Use `UnixCommand` for
+Unix-like command interpreters and `PowerShellCommand` for PowerShell. Put the per-command timeout
+on the command object; `UnixCommand(sudo=True)` requests non-interactive execution through `sudo`.
+The concrete transport validates whether it supports the supplied command type.
+
 ```python
 from collections.abc import Iterator
 
 import pytest
 
 from hardware_test.logging import StepLogger
+from hardware_test.models import UnixCommand
 from hardware_test.stand import TestStand
 from tests.hardware.base import BaseTest
 
@@ -24,14 +30,14 @@ def prepared_test_mode(
 ) -> Iterator[None]:
     """Enable a fictional test mode and always restore the default mode."""
     func_step_logger.log("Enable DUT test mode")
-    setup_result = stand.dut.execute_command("example test-mode enable")
+    setup_result = stand.dut.execute_command(UnixCommand(query="example test-mode enable"))
     assert setup_result.exit_code == 0, setup_result.stderr
 
     try:
         yield
     finally:
         func_step_logger.log("Restore DUT default mode")
-        cleanup_result = stand.dut.execute_command("example test-mode disable")
+        cleanup_result = stand.dut.execute_command(UnixCommand(query="example test-mode disable"))
         assert cleanup_result.exit_code == 0, cleanup_result.stderr
 
 
@@ -45,14 +51,14 @@ class TestServiceRecovery(BaseTest):
         func_step_logger.log("Restart service")
         self.run_and_check_command(
             stand.dut,
-            "example service restart",
+            UnixCommand(query="example service restart"),
             expected_stdout="restarted",
         )
 
         func_step_logger.log("Check service status")
         result = self.run_command(
             stand.dut,
-            "example service status",
+            UnixCommand(query="example service status"),
         )
 
         # Scenario-specific logic stays in the test.
@@ -107,6 +113,7 @@ class RecoveryBaseTest(BaseTest):
 import pytest
 
 from hardware_test.devices import Dut
+from hardware_test.models import UnixCommand
 from tests.hardware.recovery.base import RecoveryBaseTest as BaseTest
 
 
@@ -115,7 +122,7 @@ class TestServiceRecovery(BaseTest):
     def test_service_is_ready(self, dut: Dut) -> None:
         self.run_and_check_command(
             dut,
-            "example service status",
+            UnixCommand(query="example service status"),
             expected_stdout="ready",
         )
 ```

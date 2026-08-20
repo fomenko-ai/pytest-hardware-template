@@ -4,7 +4,7 @@ import logging
 import re
 
 from hardware_test.devices import Dut
-from hardware_test.models import CommandResult
+from hardware_test.models import CommandResult, TextCommand
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +27,11 @@ class BaseTest:
     def run_command(
         cls,
         dut: Dut,
-        command: str,
-        *,
-        timeout: float | None = None,
+        command: TextCommand,
     ) -> CommandResult:
         """Log and execute one DUT CLI command."""
-        logger.info("Run command: %s", command)
-        result = dut.execute_command(command, timeout)
+        logger.info("Run command: %s", command.query)
+        result = dut.execute_command(command)
         logger.info(
             "Command completed with exit code %d; stdout=%r; stderr=%r",
             result.exit_code,
@@ -115,19 +113,14 @@ class BaseTest:
     def run_and_check_command(
         cls,
         dut: Dut,
-        command: str,
+        command: TextCommand,
         *,
         expected_stdout: str | None = None,
         expected_stderr: str | None = None,
         expected_exit_code: int = 0,
-        timeout: float | None = None,
     ) -> CommandResult:
         """Run a DUT CLI command, validate it, and return its result."""
-        result = cls.run_command(
-            dut,
-            command,
-            timeout=timeout,
-        )
+        result = cls.run_command(dut, command)
         cls.check_command(
             result,
             expected_stdout=expected_stdout,

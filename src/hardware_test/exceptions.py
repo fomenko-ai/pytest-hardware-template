@@ -23,3 +23,7 @@ class TransportError(HardwareTestError):
 
 class TransportTimeoutError(TransportError):
     """Raised when a transport operation exceeds its timeout."""
+
+
+class UnsupportedCommandError(TransportError):
+    """Raised when a transport cannot execute a command type."""

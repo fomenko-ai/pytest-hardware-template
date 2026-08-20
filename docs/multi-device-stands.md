@@ -99,6 +99,7 @@ import pytest
 
 from hardware_test.devices import Analyzer, Dut
 from hardware_test.logging import StepLogger
+from hardware_test.models import UnixCommand
 from hardware_test.stand import TestStand
 from tests.hardware.serial_board.base import SerialBoardBaseTest as BaseTest
 
@@ -117,10 +118,14 @@ class TestSerialBoard(BaseTest):
         reference_meter = stand.device("reference_meter", Analyzer)
 
         func_step_logger.log("Check server readiness")
-        self.run_and_check_command(server, "example server status", expected_stdout="ready")
+        self.run_and_check_command(
+            server,
+            UnixCommand(query="example server status"),
+            expected_stdout="ready",
+        )
 
         func_step_logger.log("Check board test output")
-        result = self.run_command(board, "example output status")
+        result = self.run_command(board, UnixCommand(query="example output status"))
 
         self.check_command(result, expected_stdout="enabled", expected_stderr="")
 

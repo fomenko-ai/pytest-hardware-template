@@ -1,7 +1,7 @@
 """Example device-under-test API."""
 
 from hardware_test.devices.base import Device
-from hardware_test.models import CommandResult, DeviceStatus
+from hardware_test.models import CommandResult, DeviceStatus, TextCommand
 
 
 class Dut(Device):
@@ -9,11 +9,10 @@ class Dut(Device):
 
     def execute_command(
         self,
-        command: str,
-        timeout: float | None = None,
+        command: TextCommand,
     ) -> CommandResult:
         """Execute a command exposed by the DUT command-line interface."""
-        return self._transport.execute(command, timeout)
+        return self._transport.execute(command)
 
     def get_status(self) -> DeviceStatus:
         """Read status after a concrete project defines its device protocol."""

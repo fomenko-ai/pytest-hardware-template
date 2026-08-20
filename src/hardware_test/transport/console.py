@@ -9,7 +9,7 @@ from uuid import uuid4
 from pydantic import SecretStr
 
 from hardware_test.exceptions import TransportError, TransportTimeoutError
-from hardware_test.models import CommandResult
+from hardware_test.models import CommandResult, UnixCommand
 
 _POLL_INTERVAL = 0.01
 
@@ -74,7 +74,7 @@ class LinuxConsoleSession:
             self._channel.sendall(f"export PS1={shlex.quote(self._prompt)}\r".encode())
             self._read_until_any((self._prompt,), self._connect_timeout, "shell prompt")
 
-    def execute(self, command: str, timeout: float | None = None) -> CommandResult:
+    def execute(self, command: UnixCommand) -> CommandResult:
         """Execute one shell command and parse its output and exit status."""
         if self._channel.closed:
             raise RuntimeError("Console channel is closed")
@@ -82,7 +82,7 @@ class LinuxConsoleSession:
         token = f"__HARDWARE_TEST_EXIT_{uuid4().hex}__"
         status_name = f"__hardware_test_status_{uuid4().hex}"
         submitted = (
-            f"eval {shlex.quote(command)}; {status_name}=$?; "
+            f"eval {shlex.quote(command.text)}; {status_name}=$?; "
             f"PS1={shlex.quote(self._prompt)}; "
             f"printf '\\n{token}%s\\n' \"${status_name}\""
         )
@@ -90,7 +90,7 @@ class LinuxConsoleSession:
 
         response, exit_code = self._read_command_response(
             token,
-            timeout if timeout is not None else self._command_timeout,
+            command.timeout if command.timeout is not None else self._command_timeout,
         )
         return CommandResult(
             stdout=self._remove_echo(response, submitted),
