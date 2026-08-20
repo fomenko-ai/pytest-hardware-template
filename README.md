@@ -385,6 +385,26 @@ docker run --rm \
   uv run pytest tests/hardware --stand stand-01
 ```
 
+To run an already-built image on another host, transfer it through a container registry or with
+`docker save` and `docker load`. Mount that host's inventory directory and select its `stands.yaml`
+with `--inventory`; paths in `device_files` remain relative to the mounted `stands.yaml`:
+
+```bash
+docker run --rm \
+  --env-file .env \
+  --network host \
+  --volume "$PWD/inventory:/runtime/inventory:ro" \
+  --volume "$HOME/.ssh/known_hosts:/root/.ssh/known_hosts:ro" \
+  --volume "$PWD/artifacts:/app/artifacts" \
+  pytest-hardware-template \
+  uv run pytest tests/hardware \
+    --inventory /runtime/inventory/stands.yaml \
+    --stand stand-01
+```
+
+See [Running a built image on another host](docs/docker-runtime.md) for image transfer, host
+preparation, external inventory layout, hardware access, and troubleshooting.
+
 Do not bake `.env`, credentials, or `known_hosts` into the image. Device mounts for USB, Serial,
 VISA, and similar transports are platform- and project-specific and should be added only when
 required.
