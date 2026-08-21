@@ -11,50 +11,59 @@ from hardware_test.inventory.models import (
 from hardware_test.settings import ConsoleCredentialSettings, Settings
 from hardware_test.transport import (
     ConsoleSessionConfig,
+    LockableTransport,
     PicocomOverSshTransport,
     PySerialOverSshTransport,
     PySerialTransport,
     SshConnectionConfig,
     SSHTransport,
-    Transport,
+    SynchronizedTransport,
 )
 
 
-def create_transport(config: TransportConfig, settings: Settings) -> Transport:
+def create_transport(config: TransportConfig, settings: Settings) -> LockableTransport:
     """Create a transport while resolving credentials outside inventory."""
     if isinstance(config, PySerialTransportConfig):
-        return PySerialTransport(
-            serial_device=config.serial_device,
-            baudrate=config.baudrate,
-            console=_create_console_config(config, settings),
-            connect_timeout=settings.connect_timeout,
-            command_timeout=settings.command_timeout,
+        return SynchronizedTransport(
+            PySerialTransport(
+                serial_device=config.serial_device,
+                baudrate=config.baudrate,
+                console=_create_console_config(config, settings),
+                connect_timeout=settings.connect_timeout,
+                command_timeout=settings.command_timeout,
+            )
         )
 
     ssh = _create_ssh_config(config, settings)
     if isinstance(config, PicocomOverSshTransportConfig):
-        return PicocomOverSshTransport(
-            ssh=ssh,
-            serial_device=config.serial_device,
-            baudrate=config.baudrate,
-            console=_create_console_config(config, settings),
-            connect_timeout=settings.connect_timeout,
-            command_timeout=settings.command_timeout,
+        return SynchronizedTransport(
+            PicocomOverSshTransport(
+                ssh=ssh,
+                serial_device=config.serial_device,
+                baudrate=config.baudrate,
+                console=_create_console_config(config, settings),
+                connect_timeout=settings.connect_timeout,
+                command_timeout=settings.command_timeout,
+            )
         )
     if isinstance(config, PySerialOverSshTransportConfig):
-        return PySerialOverSshTransport(
+        return SynchronizedTransport(
+            PySerialOverSshTransport(
+                ssh=ssh,
+                serial_device=config.serial_device,
+                baudrate=config.baudrate,
+                console=_create_console_config(config, settings),
+                serial_agent_command=settings.serial_agent_command,
+                connect_timeout=settings.connect_timeout,
+                command_timeout=settings.command_timeout,
+            )
+        )
+    return SynchronizedTransport(
+        SSHTransport(
             ssh=ssh,
-            serial_device=config.serial_device,
-            baudrate=config.baudrate,
-            console=_create_console_config(config, settings),
-            serial_agent_command=settings.serial_agent_command,
             connect_timeout=settings.connect_timeout,
             command_timeout=settings.command_timeout,
         )
-    return SSHTransport(
-        ssh=ssh,
-        connect_timeout=settings.connect_timeout,
-        command_timeout=settings.command_timeout,
     )
 
 

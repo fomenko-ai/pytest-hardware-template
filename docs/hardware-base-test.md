@@ -81,6 +81,21 @@ and its fixtures use `StepLogger` for significant scenario actions. Use `run_and
 for an immediate check and separate `run_command` from `check_command` when the test needs
 additional logic between execution and the common assertions.
 
+When several commands must run without another thread using the same connection between them,
+reserve the device transport for the complete sequence:
+
+```python
+with stand.dut.exclusive_connection():
+    stand.dut.execute_command(UnixCommand("example configure"))
+    stand.dut.execute_command(UnixCommand("example restart"))
+    result = stand.dut.execute_command(UnixCommand("example service status"))
+```
+
+Every individual transport operation is serialized automatically. The explicit context is needed
+only for an uninterrupted sequence. Its guarantee is limited to the same transport instance in
+one process; coordinating separate pytest workers or external programs requires a shared resource
+lock outside the transport.
+
 Do not put credentials or secrets in commands passed to these helpers because `run_command` logs
 the command text. When a command is merely an implementation detail rather than the tested CLI,
 hide it behind a named method on `Dut` and call that domain method from the test.

@@ -23,7 +23,12 @@ from hardware_test.transport import (
     PySerialOverSshTransport,
     PySerialTransport,
     SSHTransport,
+    SynchronizedTransport,
 )
+
+
+def _wrapped_transport(transport: SynchronizedTransport) -> object:
+    return transport.transport
 
 
 def _config() -> SshTransportConfig:
@@ -40,7 +45,8 @@ def test_transport_factory_resolves_secret_from_settings() -> None:
 
     transport = create_transport(_config(), settings)
 
-    assert isinstance(transport, SSHTransport)
+    assert isinstance(transport, SynchronizedTransport)
+    assert isinstance(_wrapped_transport(transport), SSHTransport)
 
 
 def test_transport_factory_rejects_unknown_credentials() -> None:
@@ -65,7 +71,8 @@ def test_transport_factory_creates_picocom_over_ssh_transport() -> None:
 
     transport = create_transport(config, settings)
 
-    assert isinstance(transport, PicocomOverSshTransport)
+    assert isinstance(transport, SynchronizedTransport)
+    assert isinstance(_wrapped_transport(transport), PicocomOverSshTransport)
 
 
 def test_transport_factory_resolves_console_credentials() -> None:
@@ -91,7 +98,8 @@ def test_transport_factory_resolves_console_credentials() -> None:
 
     transport = create_transport(config, settings)
 
-    assert isinstance(transport, PicocomOverSshTransport)
+    assert isinstance(transport, SynchronizedTransport)
+    assert isinstance(_wrapped_transport(transport), PicocomOverSshTransport)
 
 
 def test_transport_factory_rejects_unknown_console_credentials() -> None:
@@ -125,8 +133,10 @@ def test_transport_factory_uses_global_host_key_policy() -> None:
 
     transport = create_transport(_config(), settings)
 
-    assert isinstance(transport, SSHTransport)
-    assert transport._ssh.host_key_policy is SshHostKeyPolicy.WARN
+    assert isinstance(transport, SynchronizedTransport)
+    wrapped_transport = _wrapped_transport(transport)
+    assert isinstance(wrapped_transport, SSHTransport)
+    assert wrapped_transport._ssh.host_key_policy is SshHostKeyPolicy.WARN
 
 
 def test_transport_factory_prefers_inventory_host_key_policy() -> None:
@@ -146,8 +156,10 @@ def test_transport_factory_prefers_inventory_host_key_policy() -> None:
 
     transport = create_transport(config, settings)
 
-    assert isinstance(transport, SSHTransport)
-    assert transport._ssh.host_key_policy is SshHostKeyPolicy.ACCEPT_NEW
+    assert isinstance(transport, SynchronizedTransport)
+    wrapped_transport = _wrapped_transport(transport)
+    assert isinstance(wrapped_transport, SSHTransport)
+    assert wrapped_transport._ssh.host_key_policy is SshHostKeyPolicy.ACCEPT_NEW
 
 
 def test_transport_factory_creates_local_pyserial_without_ssh_credentials() -> None:
@@ -159,7 +171,8 @@ def test_transport_factory_creates_local_pyserial_without_ssh_credentials() -> N
 
     transport = create_transport(config, Settings(_env_file=None))
 
-    assert isinstance(transport, PySerialTransport)
+    assert isinstance(transport, SynchronizedTransport)
+    assert isinstance(_wrapped_transport(transport), PySerialTransport)
 
 
 def test_transport_factory_creates_pyserial_over_ssh() -> None:
@@ -180,5 +193,7 @@ def test_transport_factory_creates_pyserial_over_ssh() -> None:
 
     transport = create_transport(config, settings)
 
-    assert isinstance(transport, PySerialOverSshTransport)
-    assert transport._serial_agent_command == "/opt/hardware/bin/hardware-serial-helper"
+    assert isinstance(transport, SynchronizedTransport)
+    wrapped_transport = _wrapped_transport(transport)
+    assert isinstance(wrapped_transport, PySerialOverSshTransport)
+    assert wrapped_transport._serial_agent_command == "/opt/hardware/bin/hardware-serial-helper"

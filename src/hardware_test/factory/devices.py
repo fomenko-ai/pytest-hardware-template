@@ -5,9 +5,9 @@ from collections.abc import Callable
 from hardware_test.devices import Analyzer, Device, Dut, Generator
 from hardware_test.exceptions import FactoryError
 from hardware_test.inventory import DeviceConfig
-from hardware_test.transport import Transport
+from hardware_test.transport import LockableTransport
 
-DeviceConstructor = Callable[[Transport, str], Device]
+DeviceConstructor = Callable[[LockableTransport, str], Device]
 
 _DEVICE_TYPES: dict[str, DeviceConstructor] = {
     "dut": Dut,
@@ -16,7 +16,7 @@ _DEVICE_TYPES: dict[str, DeviceConstructor] = {
 }
 
 
-def create_device(config: DeviceConfig, transport: Transport) -> Device:
+def create_device(config: DeviceConfig, transport: LockableTransport) -> Device:
     """Create a typed device API selected by its inventory type."""
     try:
         constructor = _DEVICE_TYPES[config.type]

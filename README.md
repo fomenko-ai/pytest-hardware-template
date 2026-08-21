@@ -112,12 +112,12 @@ primary = stand.device("analyzer_primary", Analyzer)
 secondary = stand.device("analyzer_secondary", Analyzer)
 ```
 
-`Transport` is a small protocol with `connect`, `close`, and `execute`. The included
-`SSHTransport` encapsulates Paramiko. `PicocomOverSshTransport` uses a persistent SSH PTY channel
-to reach a Linux serial console through `picocom`. Example device methods raise
-`NotImplementedError` until a project supplies its own protocol. See
-[SSH host-key policies](docs/ssh-host-keys.md) for global verification settings and per-device
-overrides.
+`Transport` defines the basic connection contract. `SynchronizedTransport` wraps every concrete
+transport created by the factory and provides serialized operations and explicit exclusive access
+through `LockableTransport`. Concrete implementations keep Paramiko, pyserial, and other client
+libraries outside device APIs. See the [transport architecture](docs/transports.md) for the
+contracts, lifecycle, command flow, locking guarantees, and extension rules. Example device
+methods raise `NotImplementedError` until a project supplies its own protocol.
 
 ### Linux serial console transports
 
