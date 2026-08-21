@@ -4,14 +4,33 @@ from typing import cast
 
 import pytest
 
-from hardware_test.models import PowerShellCommand, UnixCommand
+from hardware_test.models import BinaryCommand, PowerShellCommand, UnixCommand
 
 
 def test_unix_command_returns_plain_text_by_default() -> None:
-    command = UnixCommand(query="uname -a", timeout=3.0)
+    command = UnixCommand("uname -a", timeout=3.0)
 
     assert command.text == "uname -a"
     assert command.timeout == 3.0
+
+
+def test_unix_command_accepts_query_by_keyword() -> None:
+    command = UnixCommand(query="uname -a")
+
+    assert command.text == "uname -a"
+
+
+def test_binary_command_accepts_positional_query() -> None:
+    command = BinaryCommand(b"\x01\x02", timeout=3.0)
+
+    assert command.query == b"\x01\x02"
+    assert command.timeout == 3.0
+
+
+def test_binary_command_accepts_query_by_keyword() -> None:
+    command = BinaryCommand(query=b"\x01\x02")
+
+    assert command.query == b"\x01\x02"
 
 
 def test_unix_command_adds_sudo_prefix() -> None:
@@ -47,3 +66,8 @@ def test_powershell_command_preserves_query_text() -> None:
 def test_text_command_rejects_binary_query_at_runtime() -> None:
     with pytest.raises(TypeError, match="UnixCommand query must be str"):
         UnixCommand(query=cast(str, b"uname -a"))
+
+
+def test_binary_command_rejects_text_query_at_runtime() -> None:
+    with pytest.raises(TypeError, match="BinaryCommand query must be bytes"):
+        BinaryCommand(query=cast(bytes, "uname -a"))

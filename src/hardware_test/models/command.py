@@ -1,15 +1,24 @@
 """Command execution requests and results."""
 
 import shlex
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Command[QueryT: (str, bytes)]:
     """Transport command containing a textual or binary query."""
 
-    query: QueryT
+    query: QueryT = field(kw_only=False)
     timeout: float | None = None
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class BinaryCommand(Command[bytes]):
+    """Command represented as bytes for a binary protocol."""
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.query, bytes):
+            raise TypeError(f"{type(self).__name__} query must be bytes")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

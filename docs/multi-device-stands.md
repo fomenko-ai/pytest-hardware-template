@@ -120,12 +120,12 @@ class TestSerialBoard(BaseTest):
         func_step_logger.log("Check server readiness")
         self.run_and_check_command(
             server,
-            UnixCommand(query="example server status"),
+            UnixCommand("example server status"),
             expected_stdout="ready",
         )
 
         func_step_logger.log("Check board test output")
-        result = self.run_command(board, UnixCommand(query="example output status"))
+        result = self.run_command(board, UnixCommand("example output status"))
 
         self.check_command(result, expected_stdout="enabled", expected_stderr="")
 

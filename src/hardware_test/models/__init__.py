@@ -1,6 +1,7 @@
 """Shared value objects."""
 
 from hardware_test.models.command import (
+    BinaryCommand,
     Command,
     CommandResult,
     PowerShellCommand,
@@ -12,6 +13,7 @@ from hardware_test.models.ssh import SshHostKeyPolicy
 from hardware_test.models.status import DeviceStatus
 
 __all__ = [
+    "BinaryCommand",
     "Command",
     "CommandResult",
     "DeviceStatus",
