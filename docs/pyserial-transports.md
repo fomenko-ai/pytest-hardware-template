@@ -23,8 +23,9 @@ devices:
       type: pyserial
       serial_device: /dev/serial/by-id/usb-example-board-port0
       baudrate: 115200
-      prompt: "__HARDWARE_TEST_PROMPT__# "
-      console_credentials: dut-console
+      console:
+        prompt: "__HARDWARE_TEST_PROMPT__# "
+        credentials: dut-console
 ```
 
 The pytest account must have read and write access to `serial_device`. The port is opened with
@@ -42,14 +43,16 @@ devices:
     model: example-linux-board
     transport:
       type: pyserial_over_ssh
-      host: 192.0.2.14
-      port: 22
-      credentials: default-ssh
-      host_key_policy: reject
+      ssh:
+        host: 192.0.2.14
+        port: 22
+        credentials: default-ssh
+        host_key_policy: reject
       serial_device: /dev/serial/by-path/platform-example-port0
       baudrate: 115200
-      prompt: "__HARDWARE_TEST_PROMPT__# "
-      console_credentials: dut-console
+      console:
+        prompt: "__HARDWARE_TEST_PROMPT__# "
+        credentials: dut-console
 ```
 
 Install `hardware-serial-agent` on the stand before running hardware tests. See the
@@ -72,10 +75,12 @@ per-device override described in [SSH host-key policies](ssh-host-keys.md).
 Both transports accept the same optional console settings:
 
 ```yaml
-initial_prompt_suffix: "# "
-login_prompt: "login:"
-password_prompt: "Password:"
-console_credentials: dut-console
+console:
+  prompt: "__HARDWARE_TEST_PROMPT__# "
+  initial_prompt_suffix: "# "
+  login_prompt: "login:"
+  password_prompt: "Password:"
+  credentials: dut-console
 ```
 
 Console credentials remain in `.env` as `SecretStr` values. If the shell is already authenticated,

@@ -16,8 +16,7 @@ def _device_config(device_type: str) -> DeviceConfig:
             "model": "example-model",
             "transport": {
                 "type": "ssh",
-                "host": "192.0.2.10",
-                "credentials": "default-ssh",
+                "ssh": {"host": "192.0.2.10", "credentials": "default-ssh"},
             },
         }
     )

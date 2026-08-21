@@ -20,35 +20,40 @@ devices:
     model: example-linux-server
     transport:
       type: ssh
-      host: 192.0.2.13
-      credentials: default-ssh
+      ssh:
+        host: 192.0.2.13
+        credentials: default-ssh
 
   serial_board:
     type: dut
     model: example-linux-board
     transport:
       type: picocom_over_ssh
-      host: 192.0.2.13
-      credentials: default-ssh
+      ssh:
+        host: 192.0.2.13
+        credentials: default-ssh
       serial_device: /dev/serial/by-path/platform-example-port0
-      prompt: "__HARDWARE_TEST_PROMPT__# "
-      console_credentials: dut-console
+      console:
+        prompt: "__HARDWARE_TEST_PROMPT__# "
+        credentials: dut-console
 
   analyzer:
     type: analyzer
     model: example-analyzer
     transport:
       type: ssh
-      host: 192.0.2.21
-      credentials: analyzer-default
+      ssh:
+        host: 192.0.2.21
+        credentials: analyzer-default
 
   reference_meter:
     type: analyzer
     model: example-reference-meter
     transport:
       type: ssh
-      host: 192.0.2.22
-      credentials: analyzer-default
+      ssh:
+        host: 192.0.2.22
+        credentials: analyzer-default
 ```
 
 The stand inventory maps the physical devices to stable logical roles. `reference_meter` is an

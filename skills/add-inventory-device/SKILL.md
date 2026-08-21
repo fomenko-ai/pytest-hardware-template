@@ -46,9 +46,10 @@ devices:
     model: example-analyzer-b
     transport:
       type: ssh
-      host: 192.0.2.23
-      port: 22
-      credentials: analyzer-default
+      ssh:
+        host: 192.0.2.23
+        port: 22
+        credentials: analyzer-default
 ```
 
 ## Implement and verify

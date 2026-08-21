@@ -35,15 +35,16 @@ An individual SSH-based transport may override the global policy in inventory:
 ```yaml
 transport:
   type: ssh
-  host: 192.0.2.21
-  credentials: analyzer-default
-  host_key_policy: accept_new
+  ssh:
+    host: 192.0.2.21
+    credentials: analyzer-default
+    host_key_policy: accept_new
 ```
 
 The same field is available for `picocom_over_ssh`. Resolution follows this order:
 
 ```text
-transport.host_key_policy
+transport.ssh.host_key_policy
     -> HARDWARE_TEST_SSH_HOST_KEY_POLICY
     -> reject
 ```

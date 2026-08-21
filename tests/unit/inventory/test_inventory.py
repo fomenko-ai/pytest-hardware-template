@@ -6,10 +6,12 @@ import pytest
 
 from hardware_test.exceptions import InventoryError, UnknownStandError
 from hardware_test.inventory import (
+    ConsoleSessionInventoryConfig,
     Inventory,
     PicocomOverSshTransportConfig,
     PySerialOverSshTransportConfig,
     PySerialTransportConfig,
+    SshConnectionInventoryConfig,
     SshTransportConfig,
     get_stand,
     load_inventory,
@@ -26,8 +28,7 @@ def _inventory_data() -> dict[str, object]:
                 "model": "example",
                 "transport": {
                     "type": "ssh",
-                    "host": "192.0.2.10",
-                    "credentials": "default-ssh",
+                    "ssh": {"host": "192.0.2.10", "credentials": "default-ssh"},
                 },
             }
         },
@@ -42,7 +43,9 @@ devices:
   {device_name}:
     type: dut
     model: example
-    transport: {{type: ssh, host: {host}, credentials: default-ssh}}
+    transport:
+      type: ssh
+      ssh: {{host: {host}, credentials: default-ssh}}
 """,
         encoding="utf-8",
     )
@@ -73,7 +76,7 @@ stands:
 
     transport = inventory.devices["device-01"].transport
     assert isinstance(transport, SshTransportConfig)
-    assert transport.port == 22
+    assert transport.ssh.port == 22
 
 
 def test_load_inventory_wraps_validation_errors(tmp_path: Path) -> None:
@@ -148,10 +151,9 @@ def test_unknown_stand_lists_available_names() -> None:
 def test_picocom_transport_accepts_explicit_device_paths(serial_device: str) -> None:
     config = PicocomOverSshTransportConfig(
         type="picocom_over_ssh",
-        host="192.0.2.10",
-        credentials="default-ssh",
+        ssh=SshConnectionInventoryConfig(host="192.0.2.10", credentials="default-ssh"),
         serial_device=serial_device,
-        prompt="__HARDWARE_TEST_PROMPT__# ",
+        console=ConsoleSessionInventoryConfig(prompt="__HARDWARE_TEST_PROMPT__# "),
     )
 
     assert config.serial_device == serial_device
@@ -165,24 +167,23 @@ def test_picocom_transport_rejects_device_paths_outside_dev(serial_device: str) 
     with pytest.raises(ValueError, match="absolute path below /dev"):
         PicocomOverSshTransportConfig(
             type="picocom_over_ssh",
-            host="192.0.2.10",
-            credentials="default-ssh",
+            ssh=SshConnectionInventoryConfig(host="192.0.2.10", credentials="default-ssh"),
             serial_device=serial_device,
-            prompt="__HARDWARE_TEST_PROMPT__# ",
+            console=ConsoleSessionInventoryConfig(prompt="__HARDWARE_TEST_PROMPT__# "),
         )
 
 
 def test_inventory_parses_per_device_host_key_policy() -> None:
     config = PicocomOverSshTransportConfig(
         type="picocom_over_ssh",
-        host="192.0.2.10",
-        credentials="default-ssh",
-        host_key_policy="warn",
+        ssh=SshConnectionInventoryConfig(
+            host="192.0.2.10", credentials="default-ssh", host_key_policy="warn"
+        ),
         serial_device="/dev/ttyUSB0",
-        prompt="__HARDWARE_TEST_PROMPT__# ",
+        console=ConsoleSessionInventoryConfig(prompt="__HARDWARE_TEST_PROMPT__# "),
     )
 
-    assert config.host_key_policy is SshHostKeyPolicy.WARN
+    assert config.ssh.host_key_policy is SshHostKeyPolicy.WARN
 
 
 @pytest.mark.parametrize(
@@ -199,10 +200,10 @@ def test_inventory_parses_pyserial_transports(
     transport: dict[str, object] = {
         "type": transport_type,
         "serial_device": "/dev/ttyACM0",
-        "prompt": "__HARDWARE_TEST_PROMPT__# ",
+        "console": {"prompt": "__HARDWARE_TEST_PROMPT__# "},
     }
     if transport_type == "pyserial_over_ssh":
-        transport.update(host="192.0.2.10", credentials="default-ssh")
+        transport["ssh"] = {"host": "192.0.2.10", "credentials": "default-ssh"}
     data = _inventory_data()
     devices = data["devices"]
     assert isinstance(devices, dict)

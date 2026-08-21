@@ -6,36 +6,40 @@ devices:
     model: example-device-a
     transport:
       type: ssh
-      host: 192.0.2.11
-      port: 22
-      credentials: default-ssh
+      ssh:
+        host: 192.0.2.11
+        port: 22
+        credentials: default-ssh
 
   dut_02:
     type: dut
     model: example-device-b
     transport:
       type: ssh
-      host: 192.0.2.12
-      port: 22
-      credentials: default-ssh
-      host_key_policy: accept_new
+      ssh:
+        host: 192.0.2.12
+        port: 22
+        credentials: default-ssh
+        host_key_policy: accept_new
 
   serial_dut_example:
     type: dut
     model: example-linux-board
     transport:
       type: picocom_over_ssh
-      host: 192.0.2.13
-      port: 22
-      credentials: default-ssh
-      host_key_policy: reject
+      ssh:
+        host: 192.0.2.13
+        port: 22
+        credentials: default-ssh
+        host_key_policy: reject
       serial_device: /dev/serial/by-path/platform-example-usb-0:1:1.0-port0
       baudrate: 115200
-      prompt: "__HARDWARE_TEST_PROMPT__# "
-      initial_prompt_suffix: "# "
-      login_prompt: "login:"
-      password_prompt: "Password:"
-      console_credentials: dut-console
+      console:
+        prompt: "__HARDWARE_TEST_PROMPT__# "
+        initial_prompt_suffix: "# "
+        login_prompt: "login:"
+        password_prompt: "Password:"
+        credentials: dut-console
 
   local_pyserial_dut_example:
     type: dut
@@ -44,36 +48,41 @@ devices:
       type: pyserial
       serial_device: /dev/serial/by-id/usb-example-local-board-port0
       baudrate: 115200
-      prompt: "__HARDWARE_TEST_PROMPT__# "
-      console_credentials: dut-console
+      console:
+        prompt: "__HARDWARE_TEST_PROMPT__# "
+        credentials: dut-console
 
   remote_pyserial_dut_example:
     type: dut
     model: example-remote-linux-board
     transport:
       type: pyserial_over_ssh
-      host: 192.0.2.14
-      port: 22
-      credentials: default-ssh
+      ssh:
+        host: 192.0.2.14
+        port: 22
+        credentials: default-ssh
       serial_device: /dev/serial/by-path/platform-example-usb-0:2:1.0-port0
       baudrate: 115200
-      prompt: "__HARDWARE_TEST_PROMPT__# "
-      console_credentials: dut-console
+      console:
+        prompt: "__HARDWARE_TEST_PROMPT__# "
+        credentials: dut-console
 
   analyzer_01:
     type: analyzer
     model: example-analyzer
     transport:
       type: ssh
-      host: 192.0.2.21
-      port: 22
-      credentials: analyzer-default
+      ssh:
+        host: 192.0.2.21
+        port: 22
+        credentials: analyzer-default
 
   generator_01:
     type: generator
     model: example-generator
     transport:
       type: ssh
-      host: 192.0.2.22
-      port: 22
-      credentials: generator-default
+      ssh:
+        host: 192.0.2.22
+        port: 22
+        credentials: generator-default

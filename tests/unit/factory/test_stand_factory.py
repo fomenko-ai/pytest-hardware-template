@@ -28,8 +28,7 @@ def _inventory(dut_type: str = "dut") -> Inventory:
             "model": f"example-{device_type}",
             "transport": {
                 "type": "ssh",
-                "host": f"192.0.2.{index}",
-                "credentials": credential,
+                "ssh": {"host": f"192.0.2.{index}", "credentials": credential},
             },
         }
         for index, (name, device_type, credential) in enumerate(

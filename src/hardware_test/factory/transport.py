@@ -5,7 +5,7 @@ from hardware_test.inventory.models import (
     PicocomOverSshTransportConfig,
     PySerialOverSshTransportConfig,
     PySerialTransportConfig,
-    SshTransportConfig,
+    SshConnectionInventoryConfig,
     TransportConfig,
 )
 from hardware_test.settings import ConsoleCredentialSettings, Settings
@@ -34,7 +34,7 @@ def create_transport(config: TransportConfig, settings: Settings) -> LockableTra
             )
         )
 
-    ssh = _create_ssh_config(config, settings)
+    ssh = _create_ssh_config(config.ssh, settings)
     if isinstance(config, PicocomOverSshTransportConfig):
         return SynchronizedTransport(
             PicocomOverSshTransport(
@@ -68,7 +68,7 @@ def create_transport(config: TransportConfig, settings: Settings) -> LockableTra
 
 
 def _create_ssh_config(
-    config: SshTransportConfig | PicocomOverSshTransportConfig | PySerialOverSshTransportConfig,
+    config: SshConnectionInventoryConfig,
     settings: Settings,
 ) -> SshConnectionConfig:
     credentials = settings.credentials.get_ssh(config.credentials)
@@ -92,12 +92,13 @@ def _create_console_config(
     | PySerialOverSshTransportConfig,
     settings: Settings,
 ) -> ConsoleSessionConfig:
-    credentials = _resolve_console_credentials(config.console_credentials, settings)
+    console = config.console
+    credentials = _resolve_console_credentials(console.credentials, settings)
     return ConsoleSessionConfig(
-        prompt=config.prompt,
-        initial_prompt_suffix=config.initial_prompt_suffix,
-        login_prompt=config.login_prompt,
-        password_prompt=config.password_prompt,
+        prompt=console.prompt,
+        initial_prompt_suffix=console.initial_prompt_suffix,
+        login_prompt=console.login_prompt,
+        password_prompt=console.password_prompt,
         username=credentials.username if credentials is not None else None,
         password=credentials.password if credentials is not None else None,
     )

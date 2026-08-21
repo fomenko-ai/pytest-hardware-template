@@ -19,27 +19,29 @@ devices:
     model: example-linux-board
     transport:
       type: picocom_over_ssh
-      host: 192.0.2.13
-      port: 22
-      credentials: default-ssh
+      ssh:
+        host: 192.0.2.13
+        port: 22
+        credentials: default-ssh
       serial_device: /dev/serial/by-path/platform-example-usb-0:1:1.0-port0
       baudrate: 115200
-      prompt: "__HARDWARE_TEST_PROMPT__# "
-      initial_prompt_suffix: "# "
-      login_prompt: "login:"
-      password_prompt: "Password:"
-      console_credentials: dut-console
+      console:
+        prompt: "__HARDWARE_TEST_PROMPT__# "
+        initial_prompt_suffix: "# "
+        login_prompt: "login:"
+        password_prompt: "Password:"
+        credentials: dut-console
 ```
 
 The fields have the following meanings:
 
-- `host`, `port`, and `credentials` identify the SSH endpoint on the stand.
+- `ssh` contains the host, port, credential reference, and optional host-key policy for the stand.
 - `serial_device` is one explicit absolute device path below `/dev`.
 - `baudrate` is the serial line speed and defaults to `115200`.
-- `prompt` is the unique shell prompt installed for the active test session.
-- `initial_prompt_suffix` recognizes an already authenticated shell and defaults to `# `.
-- `login_prompt` and `password_prompt` recognize console authentication requests.
-- `console_credentials` optionally references the board login profile in runtime settings.
+- `console.prompt` is the unique shell prompt installed for the active test session.
+- `console.initial_prompt_suffix` recognizes an authenticated shell and defaults to `# `.
+- `console.login_prompt` and `console.password_prompt` recognize authentication requests.
+- `console.credentials` optionally references the board login profile in runtime settings.
 
 The transport does not discover devices automatically. Prefer stable `/dev/serial/by-path/...` or
 `/dev/serial/by-id/...` paths. Direct `/dev/ttyUSB0`, `/dev/ttyACM0`, and custom udev aliases are
@@ -65,7 +67,9 @@ keep these profiles separate.
 Inventory contains only the reference:
 
 ```yaml
-console_credentials: dut-console
+console:
+  prompt: "__HARDWARE_TEST_PROMPT__# "
+  credentials: dut-console
 ```
 
 Store the profile in `.env` or inject the equivalent environment variable at runtime:
@@ -92,7 +96,7 @@ After starting `picocom`, the transport sends Enter and examines the end of the 
 After reaching a shell, the transport sets `PS1` to the configured unique `prompt`. The change
 applies only to the current board shell session and disappears when that session closes.
 
-If the board requests login but `console_credentials` is omitted, connection fails without
+If the board requests login but `console.credentials` is omitted, connection fails without
 submitting credentials. Boards using a non-root shell commonly need `initial_prompt_suffix: "$ "`.
 
 ## Command results

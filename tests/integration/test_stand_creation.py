@@ -27,11 +27,11 @@ devices:
   dut-01:
     type: dut
     model: example-dut
-    transport: {type: ssh, host: 192.0.2.10, credentials: default-ssh}
+    transport: {type: ssh, ssh: {host: 192.0.2.10, credentials: default-ssh}}
   analyzer-01:
     type: analyzer
     model: example-analyzer
-    transport: {type: ssh, host: 192.0.2.11, credentials: default-ssh}
+    transport: {type: ssh, ssh: {host: 192.0.2.11, credentials: default-ssh}}
 """,
         encoding="utf-8",
     )
