@@ -102,7 +102,10 @@ that gate. Treat approval of an approach as approval only for the stated scope.
    environment is ready.
 4. Review the final diff for unrelated changes, leaked secrets, unresolved conflict markers, and
    accidental upstream-specific values.
-5. Report:
+5. When a file is intentionally transferred without adaptation, verify that the source and target
+   are identical with `git diff --no-index --exit-code -- <source-file> <target-file>`; treat only
+   exit code `0` as confirmation of an exact transfer.
+6. Report:
    - the behavior transferred and how it was adapted;
    - the source URL and revision actually inspected;
    - changed files;

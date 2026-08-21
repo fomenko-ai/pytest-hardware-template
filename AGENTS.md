@@ -188,6 +188,31 @@ Additional requirements:
    a check cannot be run.
 6. Never include hardware tests in the ordinary pre-commit or CI quality gate.
 
+## Agent Work Records
+
+1. Store resumable task state in `.agent-work/active/`, using one file per issue or independently
+   deliverable change.
+2. Read the applicable task file before changing code, then verify its claims against the current
+   Git status, diff, and source files.
+3. Keep the task's current state, plan, verification results, blockers, and next action current.
+4. Update the task file after a significant milestone, decision, failed check, or before ending an
+   unfinished work session.
+5. Never store credentials, secrets, raw logs, or private reasoning in task files.
+6. Do not modify a task owned by another active worker without coordination.
+7. When a task is complete, move lasting knowledge into regular project documentation, reduce the
+   task file to a short result and verification summary, and move it to `.agent-work/completed/`.
+
+## Architecture Decisions
+
+1. Create a decision record in `docs/decisions/` only for a significant, long-lived architectural
+   choice with meaningful alternatives or consequences.
+2. Use `docs/decisions/template.md`; do not create decision records for routine implementation
+   details.
+3. Keep accepted decision records in Git. Mark replaced records as `superseded` and link to the
+   replacement instead of deleting them.
+4. Update regular project documentation after accepting a decision so it continues to describe
+   the current behavior; a decision record explains why the choice was made.
+
 ## Commit Message Rules
 
 Follow the existing linear commit history style:
