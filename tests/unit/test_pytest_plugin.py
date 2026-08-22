@@ -63,11 +63,14 @@ def test_pytest_configure_uses_one_run_directory(tmp_path: Path) -> None:
 
 
 def test_pytest_configure_mutes_configured_and_cli_loggers(tmp_path: Path) -> None:
+    def getoption(name: str, default: object = None) -> object:
+        return ["urllib3"] if name == "mute_logger" else default
+
     config = Mock(spec=pytest.Config)
     config.rootpath = tmp_path
     config.option = Mock()
     config.getini.return_value = ["paramiko"]
-    config.getoption.return_value = ["urllib3"]
+    config.getoption.side_effect = getoption
     paramiko_logger = logging.getLogger("paramiko")
     urllib3_logger = logging.getLogger("urllib3")
     original_paramiko_level = paramiko_logger.level

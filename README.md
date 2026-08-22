@@ -96,6 +96,20 @@ Collecting a test marked `hardware` without `--stand` fails with
 `Hardware tests require --stand`. Hardware tests access roles such as `stand.dut`; they do not
 depend on physical IDs or execute SSH commands directly.
 
+### Ordered test runs
+
+Run registered marker groups in a declared order with `-M`, load a reusable YAML scenario with
+`-S`, or pass a standard pytest argument file:
+
+```bash
+uv run pytest -M unit,integration
+uv run pytest -S framework
+uv run pytest @test-runs/pytest-args/framework.txt
+```
+
+See [ordered test runs](docs/ordered-test-runs.md) for scenario formats, marker registration,
+ordering rules, fail-fast behavior, and hardware runtime options.
+
 ## Architecture
 
 `Inventory` models combine the stand and device YAML sources and validate all physical-device
