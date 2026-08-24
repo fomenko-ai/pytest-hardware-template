@@ -13,6 +13,8 @@ from hardware_test.scenarios import ScenarioError, load_scenario, parse_marker_s
 
 _MUTED_LOG_LEVEL = logging.CRITICAL + 1
 _MARKER_SEQUENCE_KEY = pytest.StashKey[tuple[str, ...]]()
+_SUMMARY_WIDTH = 100
+
 logger = logging.getLogger(__name__)
 
 
@@ -114,6 +116,58 @@ def pytest_runtest_makereport(
     return report
 
 
+def pytest_terminal_summary(
+    terminalreporter: pytest.TerminalReporter,
+    exitstatus: pytest.ExitCode,
+) -> None:
+    """Log the test-session result and the node IDs of failed reports."""
+    duration = terminalreporter._session_start.elapsed().seconds
+    lines = [
+        " Test session summary ".center(_SUMMARY_WIDTH, "="),
+        "",
+        f"Total: {_selected_test_count(terminalreporter)}",
+        "",
+        f"Passed: {_summary_count(terminalreporter, 'passed')}",
+        f"Failed: {_summary_count(terminalreporter, 'failed')}",
+        f"Skipped: {_summary_count(terminalreporter, 'skipped')}",
+        f"Errors: {_summary_count(terminalreporter, 'error')}",
+        "",
+        f"Duration: {duration:.2f}s",
+        "",
+        f"Exit code: {int(exitstatus)}",
+    ]
+
+    failed_reports = [
+        report
+        for category in ("failed", "error")
+        for report in terminalreporter.stats.get(category, ())
+        if getattr(report, "count_towards_summary", True)
+    ]
+    if failed_reports:
+        lines.extend(("", "", "Failed tests:"))
+        for report in failed_reports:
+            nodeid = getattr(report, "nodeid", "unknown")
+            phase = getattr(report, "when", None)
+            phase_suffix = f" [{phase}]" if phase not in (None, "call") else ""
+            lines.append(f"  - {nodeid}{phase_suffix}")
+
+    lines.extend(("", "=" * _SUMMARY_WIDTH))
+    logger.info("\n\n\n%s", "\n".join(lines))
+
+
+def _selected_test_count(terminalreporter: pytest.TerminalReporter) -> int:
+    """Return the number of collected tests selected for this session."""
+    return terminalreporter._numcollected - _summary_count(terminalreporter, "deselected")
+
+
+def _summary_count(terminalreporter: pytest.TerminalReporter, category: str) -> int:
+    """Count reports that pytest includes in its terminal summary."""
+    return sum(
+        getattr(report, "count_towards_summary", True)
+        for report in terminalreporter.stats.get(category, ())
+    )
+
+
 @pytest.fixture
 def func_step_logger(request: pytest.FixtureRequest) -> StepLogger:
     """Provide an independently numbered step logger for one test function."""
@@ -206,5 +260,5 @@ def _log_test_class(test_class: type[object] | None) -> None:
 
     logger = logging.getLogger(test_class.__module__)
     description = getdoc(test_class) or "No description"
-    header = f" {test_class.__name__} ".center(100, "=")
+    header = f" {test_class.__name__} ".center(100, "-")
     logger.info("\n\n\n%s\n%s\n", header, description)

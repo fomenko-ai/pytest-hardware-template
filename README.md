@@ -300,7 +300,10 @@ test outcomes and durations for CI systems. Both files are created automatically
 options are required. `artifacts/latest.log` is a hard link to the log of the most recently started
 pytest session, so new messages are available through both paths without duplicating file data.
 During parallel runs, it points to the session started last; every run still retains its own
-`pytest.log`. Generated artifacts are ignored by Git.
+`pytest.log`. At the end of the log, a test-session summary records the number of selected tests,
+result counts, duration, exit code, and node IDs of failed tests. Setup and teardown failures
+include their phase, and the node IDs can be passed directly to pytest to rerun individual tests.
+Generated artifacts are ignored by Git.
 
 Noisy third-party loggers can be muted for every pytest run with `muted_loggers` in
 `[tool.pytest.ini_options]`. Paramiko is muted by default. Add a logger for one run with a
