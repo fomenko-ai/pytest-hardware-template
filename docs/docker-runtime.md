@@ -119,3 +119,8 @@ Before running state-changing tests, confirm that:
 
 The image's default command runs only unit and integration tests. Hardware tests run only when the
 explicit `uv run pytest tests/hardware ...` command is supplied.
+
+For repeatable manual or CI-provider-driven execution of a named scenario, use the common launcher
+described in [Running hardware scenarios from a container](containerized-hardware-runs.md). It
+standardizes runtime mounts, input validation, artifact persistence, and exit-code propagation
+without embedding provider-specific behavior.

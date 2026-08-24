@@ -454,3 +454,24 @@ push and pull request when GitHub Actions is enabled for the repository; no secr
 GitLab CI uses the official pinned `uv` Docker image, which already contains Python 3.14. A runner
 capable of pulling images from `ghcr.io` must be available to the project. Both providers cache
 `uv` downloads using `uv.lock` as the cache dependency key.
+
+### Separate containerized hardware runs
+
+Run a selected named hardware scenario from a pre-built image with the provider-independent
+launcher:
+
+```bash
+./scripts/run-hardware-tests.sh \
+  --image "${TEST_IMAGE}" \
+  --inventory "${INVENTORY_FILE}" \
+  --stand "${TEST_STAND}" \
+  --scenario "${TEST_SCENARIO}" \
+  --artifacts artifacts
+```
+
+Inactive executable examples for GitHub Actions, GitLab CI, and Jenkins are available under
+`ci/hardware/`. They all call the same script and require an explicit manual selection; none is
+enabled by the template. See
+[Running hardware scenarios from a container](docs/containerized-hardware-runs.md) for image
+preparation, runtime credentials and devices, artifact publication, stand serialization, and
+activation instructions.

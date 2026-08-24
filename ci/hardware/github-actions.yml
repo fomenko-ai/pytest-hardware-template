@@ -1,0 +1,59 @@
+name: Hardware tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: Immutable image tag or digest
+        required: true
+        type: string
+      inventory_file:
+        description: Absolute path to stands.yaml on the runner
+        required: true
+        type: string
+      stand:
+        description: Logical stand key
+        required: true
+        type: string
+      scenario:
+        description: Scenario name from the selected image
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hardware-${{ inputs.stand }}
+  cancel-in-progress: false
+
+jobs:
+  hardware:
+    runs-on: [self-hosted, hardware]
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Run hardware tests
+        env:
+          TEST_IMAGE: ${{ inputs.image }}
+          INVENTORY_FILE: ${{ inputs.inventory_file }}
+          TEST_STAND: ${{ inputs.stand }}
+          TEST_SCENARIO: ${{ inputs.scenario }}
+        run: |
+          ./scripts/run-hardware-tests.sh \
+            --image "${TEST_IMAGE}" \
+            --inventory "${INVENTORY_FILE}" \
+            --stand "${TEST_STAND}" \
+            --scenario "${TEST_SCENARIO}" \
+            --artifacts artifacts
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: hardware-${{ inputs.stand }}-${{ inputs.scenario }}
+          path: artifacts/
+          if-no-files-found: warn

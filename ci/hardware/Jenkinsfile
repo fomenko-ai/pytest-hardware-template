@@ -1,0 +1,37 @@
+pipeline {
+    agent { label 'hardware' }
+
+    parameters {
+        string(name: 'TEST_IMAGE', description: 'Immutable image tag or digest')
+        string(name: 'INVENTORY_FILE', description: 'Absolute path to stands.yaml on the agent')
+        string(name: 'TEST_STAND', description: 'Logical stand key')
+        string(name: 'TEST_SCENARIO', description: 'Scenario name from the selected image')
+    }
+
+    options {
+        disableConcurrentBuilds()
+        timeout(time: 2, unit: 'HOURS')
+    }
+
+    stages {
+        stage('Run hardware tests') {
+            steps {
+                sh '''
+                    ./scripts/run-hardware-tests.sh \
+                        --image "$TEST_IMAGE" \
+                        --inventory "$INVENTORY_FILE" \
+                        --stand "$TEST_STAND" \
+                        --scenario "$TEST_SCENARIO" \
+                        --artifacts artifacts
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            junit allowEmptyResults: true, testResults: 'artifacts/**/reports/junit.xml'
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'artifacts/**'
+        }
+    }
+}

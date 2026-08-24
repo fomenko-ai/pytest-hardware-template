@@ -1,0 +1,30 @@
+stages:
+  - hardware
+
+variables:
+  TEST_IMAGE: ""
+  INVENTORY_FILE: ""
+  TEST_STAND: ""
+  TEST_SCENARIO: ""
+
+hardware:
+  stage: hardware
+  tags:
+    - hardware
+  when: manual
+  timeout: 2 hours
+  resource_group: "hardware-${TEST_STAND}"
+  script:
+    - >-
+      ./scripts/run-hardware-tests.sh
+      --image "${TEST_IMAGE}"
+      --inventory "${INVENTORY_FILE}"
+      --stand "${TEST_STAND}"
+      --scenario "${TEST_SCENARIO}"
+      --artifacts artifacts
+  artifacts:
+    when: always
+    paths:
+      - artifacts/
+    reports:
+      junit: artifacts/**/reports/junit.xml
