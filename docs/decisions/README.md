@@ -18,3 +18,14 @@ create records for routine implementation details.
 
 Decision records explain why a choice was made. Regular documentation remains the source for how
 the project currently works.
+
+## Samples for template-based projects
+
+The files in `examples/` are starting points for projects created from this template. They are not
+decisions made by this repository. Copy a relevant sample into the downstream project's own
+`docs/decisions/` directory, adapt it to the project's actual context, assign its local decision
+number, and approve it through that project's workflow.
+
+- `examples/0001-adopt-template-before-library-publication.md` covers using the copied template now,
+  reviewing upstream changes explicitly, and evaluating migration after a shared library is
+  published.
