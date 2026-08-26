@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hardware Test Runner</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 70rem; margin: 0 auto; padding: 2rem; }
+    h1, h2 { margin-bottom: .5rem; }
+    section { border: 1px solid #7776; border-radius: .5rem; padding: 1rem; margin: 1rem 0; }
+    form { display: grid; gap: .7rem; grid-template-columns: 9rem minmax(15rem, 1fr); }
+    label { align-self: center; }
+    input, button { padding: .55rem; font: inherit; }
+    button { cursor: pointer; }
+    form button { grid-column: 2; justify-self: start; }
+    #output { min-height: 16rem; max-height: 32rem; overflow: auto; white-space: pre-wrap;
+      padding: 1rem; background: #111; color: #ddd; border-radius: .4rem; }
+    .status { font-weight: 700; }
+    .actions { display: flex; gap: .7rem; flex-wrap: wrap; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <h1>Hardware Test Runner</h1>
+  <p>Runner status: <span id="status" class="status">loading</span></p>
+
+  <section>
+    <h2>Build configured framework checkout</h2>
+    <form id="build-form">
+      <span>Source</span>
+      <span>Configured working tree</span>
+      <button type="submit">Build image</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>Pull image</h2>
+    <form id="pull-form">
+      <label for="pull-reference">Image digest</label>
+      <input id="pull-reference" placeholder="registry.example/image@sha256:..." required>
+      <button type="submit">Pull image</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>Run hardware scenario</h2>
+    <form id="run-form">
+      <label for="run-image">Image digest</label>
+      <input id="run-image" placeholder="sha256:..." required>
+      <label for="stand">Stand</label>
+      <input id="stand" placeholder="stand-01" required>
+      <label for="scenario">Scenario</label>
+      <input id="scenario" placeholder="hardware-smoke" required>
+      <button type="submit">Run tests</button>
+    </form>
+  </section>
+
+  <section>
+    <div class="actions">
+      <button id="cancel" type="button">Cancel current operation</button>
+      <a id="pytest-log" hidden>Download pytest.log</a>
+      <a id="junit" hidden>Download JUnit XML</a>
+    </div>
+    <h2>Live output</h2>
+    <pre id="output"></pre>
+  </section>
+
+  <script>
+    const statusNode = document.querySelector("#status");
+    const outputNode = document.querySelector("#output");
+    let events;
+
+    async function request(path, body) {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(JSON.stringify(payload.detail));
+      outputNode.textContent = "";
+      connectEvents();
+      await refresh();
+    }
+
+    function connectEvents() {
+      if (events) events.close();
+      events = new EventSource("/v1/current/events");
+      events.addEventListener("output", event => {
+        const payload = JSON.parse(event.data);
+        outputNode.textContent += `${payload.text}\n`;
+        outputNode.scrollTop = outputNode.scrollHeight;
+      });
+      events.addEventListener("status", async event => {
+        events.close();
+        await refresh();
+      });
+    }
+
+    async function refresh() {
+      const response = await fetch("/v1/current");
+      const state = await response.json();
+      statusNode.textContent = state ? state.status : "idle";
+      for (const element of document.querySelectorAll("form button")) {
+        element.disabled = state && !["succeeded", "passed", "failed", "cancelled",
+          "timed_out", "infrastructure_error", "interrupted"].includes(state.status);
+      }
+      if (state && state.image_digest) document.querySelector("#run-image").value = state.image_digest;
+      await refreshArtifacts();
+    }
+
+    async function refreshArtifacts() {
+      const response = await fetch("/v1/current/artifacts");
+      const items = response.ok ? (await response.json()).items : [];
+      for (const [name, id] of [["pytest.log", "#pytest-log"], ["junit.xml", "#junit"]]) {
+        const link = document.querySelector(id);
+        const item = items.find(candidate => candidate.name === name);
+        link.hidden = !item;
+        if (item) link.href = item.download_url;
+      }
+    }
+
+    document.querySelector("#build-form").addEventListener("submit", async event => {
+      event.preventDefault();
+      await request("/v1/images/build", {revision: "working-tree"});
+    });
+    document.querySelector("#pull-form").addEventListener("submit", async event => {
+      event.preventDefault();
+      await request("/v1/images/pull", {reference: document.querySelector("#pull-reference").value});
+    });
+    document.querySelector("#run-form").addEventListener("submit", async event => {
+      event.preventDefault();
+      await request("/v1/runs", {
+        image: document.querySelector("#run-image").value,
+        stand: document.querySelector("#stand").value,
+        scenario: document.querySelector("#scenario").value,
+      });
+    });
+    document.querySelector("#cancel").addEventListener("click", async () => {
+      await request("/v1/current/cancel", {});
+    });
+    refresh();
+  </script>
+</body>
+</html>

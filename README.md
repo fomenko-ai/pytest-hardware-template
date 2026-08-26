@@ -475,3 +475,8 @@ enabled by the template. See
 [Running hardware scenarios from a container](docs/containerized-hardware-runs.md) for image
 preparation, runtime credentials and devices, artifact publication, stand serialization, and
 activation instructions.
+
+For a single trusted laboratory server that needs an optional HTTP API, live output, and a minimal
+HTML interface, see [`helpers/test-runner-service`](helpers/test-runner-service/README.md). The
+helper is an independently packaged Compose application and keeps its dependencies out of the main
+framework.

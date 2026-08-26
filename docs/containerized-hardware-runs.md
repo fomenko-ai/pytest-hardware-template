@@ -141,3 +141,15 @@ The examples intentionally accept free-form strings because available images, st
 scenarios belong to the consuming project. Production automation should populate choices from an
 approved catalog or validate them before invoking the launcher. Approval gates for destructive or
 state-changing scenarios also remain project-specific.
+
+## Optional single-server API runner
+
+Projects that need a lightweight web interface on one trusted laboratory server can use the
+independently packaged service under `helpers/test-runner-service/`. It provides separate image
+build, image pull, and hardware-run operations, permits one active operation at a time, and exposes
+live output and the normal pytest artifacts through HTTP.
+
+The service is deployed by its own `compose.yaml` and talks directly to the host Docker daemon. It
+does not replace this launcher for manual or CI-provider-driven runs, and it does not add FastAPI or
+service dependencies to the main framework package. See the helper's README for its Docker socket
+trust boundary and host-path requirements.
