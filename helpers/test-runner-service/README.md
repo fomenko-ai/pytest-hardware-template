@@ -25,7 +25,9 @@ Hardware-test results keep the main project's standard layout:
 ├── latest.log
 └── <pytest-run-id>/
     ├── pytest.log
-    └── reports/junit.xml
+    └── reports/
+        ├── junit.xml
+        └── report.html
 ```
 
 Build, pull, and test execution are separate API operations. While any operation is active, another
@@ -61,7 +63,15 @@ The default permits only local image IDs returned by a successful build.
 
 ## Start with Docker Compose
 
-From this directory:
+From this directory, create the local configuration from the tracked example:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` when the framework, inventory, artifacts, or state directories use different absolute
+host paths. Do not add credentials or secrets to `.env.example`. Create all configured writable
+directories before starting the service, then build and start its container:
 
 ```bash
 docker compose up --build --detach
@@ -96,7 +106,7 @@ POST   /v1/images/build
 POST   /v1/images/pull
 POST   /v1/runs
 GET    /v1/current/artifacts
-GET    /v1/current/artifacts/{pytest.log|junit.xml}
+GET    /v1/current/artifacts/{pytest.log|junit.xml|report.html}
 ```
 
 Build the configured checkout:
@@ -124,6 +134,86 @@ Follow current output:
 ```bash
 curl --no-buffer http://127.0.0.1:8080/v1/current/events
 ```
+
+## End-to-end verification
+
+This procedure verifies the runner service, its Docker access, the main framework image, one
+prepared hardware scenario, and publication of all test artifacts. Run the test operation only
+when the selected physical stand is ready.
+
+1. Verify the required host paths from `.env`. The framework directory must contain `Dockerfile`,
+   and the inventory directory must contain `stands.yaml` plus every relative file listed in its
+   `device_files` field. The selected stand must reference device IDs defined by those files.
+
+2. Recreate the service container from the current helper source and check its health:
+
+   ```bash
+   docker compose up --build --force-recreate --detach
+   docker compose ps
+   curl --fail http://127.0.0.1:8080/health
+   ```
+
+3. Build a new main framework image. This is separate from building the service image:
+
+   ```bash
+   curl --fail --request POST http://127.0.0.1:8080/v1/images/build \
+     --header 'Content-Type: application/json' \
+     --data '{"revision":"working-tree"}'
+   ```
+
+4. Follow the operation until it finishes, or inspect it periodically:
+
+   ```bash
+   curl --no-buffer http://127.0.0.1:8080/v1/current/events
+   curl --fail http://127.0.0.1:8080/v1/current
+   ```
+
+   A successful build has status `succeeded`. Copy its complete `image_digest` value, including
+   the `sha256:` prefix.
+
+5. Confirm that the selected image contains a hardware scenario under
+   `test-runs/scenarios/<scenario>.yaml` and matching tests under `tests/hardware`. Start the run
+   with the new digest, a configured stand, and that scenario:
+
+   ```bash
+   curl --fail --request POST http://127.0.0.1:8080/v1/runs \
+     --header 'Content-Type: application/json' \
+     --data '{
+       "image":"sha256:replace-with-the-built-digest",
+       "stand":"stand-01",
+       "scenario":"hardware-smoke"
+     }'
+   ```
+
+6. Follow `/v1/current/events` again. After completion, `/v1/current` has status `passed` or
+   `failed`, an `artifact_directory`, and a JUnit-derived `summary` when pytest produced its normal
+   reports.
+
+7. Verify the published artifact list:
+
+   ```bash
+   curl --fail http://127.0.0.1:8080/v1/current/artifacts
+   ```
+
+   A completed pytest run normally lists `pytest.log`, `junit.xml`, and `report.html`. Check each
+   endpoint directly:
+
+   ```bash
+   curl --fail http://127.0.0.1:8080/v1/current/artifacts/pytest.log
+   curl --fail http://127.0.0.1:8080/v1/current/artifacts/junit.xml
+   curl --fail --output /tmp/hardware-test-report.html \
+     http://127.0.0.1:8080/v1/current/artifacts/report.html
+   ```
+
+   The HTML report can also be opened from the `Open HTML report` link at
+   `http://127.0.0.1:8080/`. Run-specific files remain below the configured artifacts directory.
+
+8. Inspect service diagnostics when an operation fails, then stop the service when finished:
+
+   ```bash
+   docker compose logs runner
+   docker compose down
+   ```
 
 ## Recovery and retention
 

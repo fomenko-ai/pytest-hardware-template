@@ -61,6 +61,7 @@
       <button id="cancel" type="button">Cancel current operation</button>
       <a id="pytest-log" hidden>Download pytest.log</a>
       <a id="junit" hidden>Download JUnit XML</a>
+      <a id="html-report" target="_blank" rel="noopener" hidden>Open HTML report</a>
     </div>
     <h2>Live output</h2>
     <pre id="output"></pre>
@@ -113,7 +114,11 @@
     async function refreshArtifacts() {
       const response = await fetch("/v1/current/artifacts");
       const items = response.ok ? (await response.json()).items : [];
-      for (const [name, id] of [["pytest.log", "#pytest-log"], ["junit.xml", "#junit"]]) {
+      for (const [name, id] of [
+        ["pytest.log", "#pytest-log"],
+        ["junit.xml", "#junit"],
+        ["report.html", "#html-report"],
+      ]) {
         const link = document.querySelector(id);
         const item = items.find(candidate => candidate.name === name);
         link.hidden = !item;

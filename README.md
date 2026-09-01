@@ -292,13 +292,16 @@ artifacts/
 └── <YYYY-MM-DD_HH-MM-SS_microseconds>/
     ├── pytest.log
     └── reports/
-        └── junit.xml
+        ├── junit.xml
+        └── report.html
 ```
 
 `pytest.log` contains Python log messages, including numbered steps, while `junit.xml` contains
-test outcomes and durations for CI systems. Both files are created automatically; no pytest CLI
-options are required. `artifacts/latest.log` is a hard link to the log of the most recently started
-pytest session, so new messages are available through both paths without duplicating file data.
+test outcomes and durations for CI systems. `report.html` is a self-contained human-readable test
+report that can be opened without separate assets. All three files are created automatically; no
+pytest CLI options are required. `artifacts/latest.log` is a hard link to the log of the most
+recently started pytest session, so new messages are available through both paths without
+duplicating file data.
 During parallel runs, it points to the session started last; every run still retains its own
 `pytest.log`. At the end of the log, a test-session summary records the number of selected tests,
 result counts, duration, exit code, and node IDs of failed tests. Setup and teardown failures

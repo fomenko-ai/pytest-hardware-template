@@ -19,6 +19,7 @@ def test_build_api_and_html(settings: Settings) -> None:
 
     assert index.status_code == 200
     assert "Hardware Test Runner" in index.text
+    assert "Open HTML report" in index.text
     assert accepted.status_code == 202
     assert state["status"] == "succeeded"
     assert state["image_digest"] == "sha256:built"

@@ -13,6 +13,8 @@ from hardware_test.pytest_plugin import (
     pytest_terminal_summary,
 )
 
+pytest_plugins = ["pytester"]
+
 
 class DescribedTestClass:
     """Check recovery after a service restart."""
@@ -52,15 +54,32 @@ def test_pytest_configure_uses_one_run_directory(tmp_path: Path) -> None:
 
     log_path = Path(config.option.log_file)
     junit_path = Path(config.option.xmlpath)
+    html_path = Path(config.option.htmlpath)
     latest_path = tmp_path / "artifacts" / "latest.log"
     assert log_path.name == "pytest.log"
     assert junit_path == log_path.parent / "reports" / "junit.xml"
+    assert html_path == log_path.parent / "reports" / "report.html"
+    assert config.option.self_contained_html is True
     assert junit_path.parent.is_dir()
     assert latest_path.samefile(log_path)
 
     log_path.write_text("Step 1: Configure analyzer\n")
 
     assert latest_path.read_text() == "Step 1: Configure analyzer\n"
+
+
+def test_pytest_session_generates_self_contained_html_report(pytester: pytest.Pytester) -> None:
+    pytester.makepyfile("def test_example():\n    assert True\n")
+
+    result = pytester.runpytest_subprocess("-q")
+
+    result.assert_outcomes(passed=1)
+    reports = list(pytester.path.glob("artifacts/*/reports/report.html"))
+    assert len(reports) == 1
+    report = reports[0].read_text(encoding="utf-8")
+    assert "<!DOCTYPE html>" in report
+    assert '<style type="text/css">' in report
+    assert "<script>" in report
 
 
 def test_pytest_configure_mutes_configured_and_cli_loggers(tmp_path: Path) -> None:

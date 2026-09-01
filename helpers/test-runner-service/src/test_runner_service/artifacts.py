@@ -6,6 +6,7 @@ from test_runner_service.models import ArtifactItem, ArtifactList, TestSummary
 ALLOWED_ARTIFACTS = {
     "pytest.log": Path("pytest.log"),
     "junit.xml": Path("reports/junit.xml"),
+    "report.html": Path("reports/report.html"),
 }
 
 

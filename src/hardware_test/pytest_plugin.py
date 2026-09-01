@@ -52,8 +52,9 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
 
 
+@pytest.hookimpl(tryfirst=True)
 def pytest_configure(config: pytest.Config) -> None:
-    """Write each pytest session log and JUnit report to one artifacts directory."""
+    """Write each pytest session log and test report to one artifacts directory."""
     marker_sequence = _get_marker_sequence(config)
     if marker_sequence:
         _validate_registered_markers(config, marker_sequence)
@@ -76,6 +77,8 @@ def pytest_configure(config: pytest.Config) -> None:
     latest_candidate.replace(config.rootpath / "artifacts" / "latest.log")
     config.option.log_file = str(log_path)
     config.option.xmlpath = reports_dir / "junit.xml"
+    config.option.htmlpath = reports_dir / "report.html"
+    config.option.self_contained_html = True
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:

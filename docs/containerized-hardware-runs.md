@@ -86,10 +86,12 @@ artifacts/
 └── <run-id>/
     ├── pytest.log
     └── reports/
-        └── junit.xml
+        ├── junit.xml
+        └── report.html
 ```
 
-Automation should publish both the JUnit result and diagnostic log even when the command fails.
+Automation should publish the HTML and JUnit reports and diagnostic log even when the command
+fails.
 
 ## Credentials and hardware access
 

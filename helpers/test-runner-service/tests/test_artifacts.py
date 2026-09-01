@@ -1,6 +1,11 @@
 from pathlib import Path
 
-from test_runner_service.artifacts import find_result_directory, list_artifacts, read_junit_summary
+from test_runner_service.artifacts import (
+    find_result_directory,
+    list_artifacts,
+    read_junit_summary,
+    resolve_artifact,
+)
 
 
 def test_junit_summary_and_artifact_listing(tmp_path: Path) -> None:
@@ -13,6 +18,8 @@ def test_junit_summary_and_artifact_listing(tmp_path: Path) -> None:
         '<testsuites><testsuite tests="5" failures="1" errors="1" skipped="1"/></testsuites>',
         encoding="utf-8",
     )
+    html = reports / "report.html"
+    html.write_text("<!doctype html><title>Test report</title>", encoding="utf-8")
 
     summary = read_junit_summary(junit)
     artifacts = list_artifacts(run_directory)
@@ -24,7 +31,13 @@ def test_junit_summary_and_artifact_listing(tmp_path: Path) -> None:
         "errors": 1,
         "skipped": 1,
     }
-    assert [item.name for item in artifacts.items] == ["pytest.log", "junit.xml"]
+    assert [item.name for item in artifacts.items] == [
+        "pytest.log",
+        "junit.xml",
+        "report.html",
+    ]
+    assert resolve_artifact(run_directory, "report.html") == html
+    assert resolve_artifact(run_directory, "../../stands.yaml") is None
 
 
 def test_result_directory_must_be_new_and_contain_junit(tmp_path: Path) -> None:

@@ -103,6 +103,8 @@ def create_router(
         path = resolve_artifact(run_directory, name)
         if path is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "artifact not found")
+        if name == "report.html":
+            return FileResponse(path)
         return FileResponse(path, filename=name)
 
     return router
