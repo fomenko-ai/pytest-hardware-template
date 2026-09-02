@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Annotated
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     allowed_image_prefixes: Annotated[tuple[str, ...], NoDecode] = ("sha256:",)
     operation_timeout_seconds: int = Field(default=3600, gt=0)
     log_poll_interval_seconds: float = Field(default=0.25, gt=0)
+    auth_enabled: bool = False
+    auth_username: str | None = None
+    auth_password: SecretStr | None = None
+    auth_session_secret: SecretStr | None = None
+    auth_session_ttl_seconds: int = Field(default=604800, gt=0)
+    auth_cookie_secure: bool = False
 
     @field_validator("docker_devices", "allowed_image_prefixes", mode="before")
     @classmethod
@@ -31,3 +37,22 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return tuple(item.strip() for item in value.split(",") if item.strip())
         return value
+
+    @model_validator(mode="after")
+    def validate_authentication_settings(self) -> Settings:
+        if self.auth_enabled:
+            required = {
+                "TEST_RUNNER_AUTH_USERNAME": self.auth_username,
+                "TEST_RUNNER_AUTH_PASSWORD": self.auth_password,
+                "TEST_RUNNER_AUTH_SESSION_SECRET": self.auth_session_secret,
+            }
+            missing = [name for name, value in required.items() if not _has_secret_value(value)]
+            if missing:
+                raise ValueError(f"authentication requires: {', '.join(missing)}")
+        return self
+
+
+def _has_secret_value(value: str | SecretStr | None) -> bool:
+    if isinstance(value, SecretStr):
+        return bool(value.get_secret_value())
+    return bool(value)

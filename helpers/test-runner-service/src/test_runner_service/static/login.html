@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in — Hardware Test Runner</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { min-height: 100vh; margin: 0; display: grid; place-items: center; }
+    main { width: min(24rem, calc(100% - 3rem)); }
+    form { display: grid; gap: .75rem; border: 1px solid #7776; border-radius: .5rem;
+      padding: 1.5rem; }
+    input, button { padding: .65rem; font: inherit; }
+    button { cursor: pointer; margin-top: .4rem; }
+    #error { color: #d33; min-height: 1.5rem; margin: 0; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Hardware Test Runner</h1>
+    <form id="login-form">
+      <label for="username">Username</label>
+      <input id="username" autocomplete="username" required autofocus>
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" required>
+      <button type="submit">Sign in</button>
+      <p id="error" role="alert"></p>
+    </form>
+  </main>
+  <script>
+    document.querySelector("#login-form").addEventListener("submit", async event => {
+      event.preventDefault();
+      const errorNode = document.querySelector("#error");
+      errorNode.textContent = "";
+      const response = await fetch("/auth/login", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          username: document.querySelector("#username").value,
+          password: document.querySelector("#password").value,
+        }),
+      });
+      if (response.ok) {
+        window.location.replace("/");
+      } else {
+        errorNode.textContent = "Invalid username or password";
+      }
+    });
+  </script>
+</body>
+</html>

@@ -18,11 +18,13 @@ def settings(tmp_path: Path) -> Settings:
     inventory_file = inventory / "stands.yaml"
     inventory_file.write_text("stands: {}\n", encoding="utf-8")
     return Settings(
+        _env_file=None,
         state_directory=tmp_path / "state",
         framework_source=framework,
         framework_dockerfile=dockerfile,
         inventory_file=inventory_file,
         artifacts_directory=artifacts,
+        env_file=None,
         allowed_image_prefixes=("sha256:", "registry.example/"),
         log_poll_interval_seconds=0.001,
     )

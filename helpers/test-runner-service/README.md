@@ -85,10 +85,33 @@ the container port remains `8080`:
 TEST_RUNNER_PORT=8081
 ```
 
+### Authentication
+
+Authentication is disabled by default. To protect the UI, API, event stream, artifacts, and API
+documentation, set the following values in the untracked `.env` file:
+
+```dotenv
+TEST_RUNNER_AUTH_ENABLED=true
+TEST_RUNNER_AUTH_USERNAME=operator
+TEST_RUNNER_AUTH_PASSWORD=replace-with-a-strong-password
+TEST_RUNNER_AUTH_SESSION_SECRET=replace-with-a-long-random-value
+```
+
+Generate the session secret independently from the password. The service refuses to start when
+authentication is enabled without any required value. After a successful login, it stores a
+signed `HttpOnly`, `SameSite=Strict` session cookie for seven days by default; neither the username
+nor password is stored in the cookie. Configure the lifetime in seconds with
+`TEST_RUNNER_AUTH_SESSION_TTL_SECONDS`. Changing the session secret invalidates all existing
+sessions.
+
+The default `TEST_RUNNER_AUTH_COOKIE_SECURE=false` supports the documented loopback HTTP setup.
+Set it to `true` whenever TLS terminates at the service-facing URL. The `/health`, `/login`, and
+login/logout endpoints remain public so health checks and authentication continue to work.
+
 The Compose deployment mounts `/var/run/docker.sock`. Docker daemon access is equivalent to
 privileged control of the laboratory host. Deploy only on a dedicated trusted server, bind the HTTP
-port to loopback or a protected internal interface, and put authentication and TLS in front of the
-service before allowing remote access. The API never accepts arbitrary Docker arguments, build
+port to loopback or a protected internal interface, and enable authentication together with TLS
+before allowing remote access. The API never accepts arbitrary Docker arguments, build
 contexts, host paths, network modes, devices, or credential files.
 
 Docker bind paths are interpreted by the host daemon. Framework, inventory, and artifacts are
@@ -98,6 +121,10 @@ therefore mounted into the service at the same absolute paths that the service p
 
 ```text
 GET    /                         lightweight HTML UI
+GET    /login                    login page when authentication is enabled
+GET    /auth/status              whether authentication is enabled
+POST   /auth/login
+POST   /auth/logout
 GET    /health
 GET    /v1/current
 GET    /v1/current/events       live Server-Sent Events

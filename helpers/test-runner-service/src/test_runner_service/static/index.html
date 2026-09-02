@@ -8,6 +8,8 @@
     :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
     body { max-width: 70rem; margin: 0 auto; padding: 2rem; }
     h1, h2 { margin-bottom: .5rem; }
+    .page-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+    .page-header h1 { margin-top: 0; }
     section { border: 1px solid #7776; border-radius: .5rem; padding: 1rem; margin: 1rem 0; }
     form { display: grid; gap: .7rem; grid-template-columns: 9rem minmax(15rem, 1fr); }
     label { align-self: center; }
@@ -22,7 +24,10 @@
   </style>
 </head>
 <body>
-  <h1>Hardware Test Runner</h1>
+  <header class="page-header">
+    <h1>Hardware Test Runner</h1>
+    <button id="logout" type="button" hidden>Sign out</button>
+  </header>
   <p>Runner status: <span id="status" class="status">loading</span></p>
 
   <section>
@@ -72,12 +77,23 @@
     const outputNode = document.querySelector("#output");
     let events;
 
+    function requireAuthentication(response) {
+      if (response.status === 401) window.location.replace("/login");
+      return response;
+    }
+
+    async function configureAuthentication() {
+      const response = await fetch("/auth/status");
+      const auth = await response.json();
+      document.querySelector("#logout").hidden = !auth.enabled;
+    }
+
     async function request(path, body) {
-      const response = await fetch(path, {
+      const response = requireAuthentication(await fetch(path, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify(body),
-      });
+      }));
       const payload = await response.json();
       if (!response.ok) throw new Error(JSON.stringify(payload.detail));
       outputNode.textContent = "";
@@ -88,6 +104,7 @@
     function connectEvents() {
       if (events) events.close();
       events = new EventSource("/v1/current/events");
+      events.onerror = () => window.location.replace("/login");
       events.addEventListener("output", event => {
         const payload = JSON.parse(event.data);
         outputNode.textContent += `${payload.text}\n`;
@@ -100,7 +117,7 @@
     }
 
     async function refresh() {
-      const response = await fetch("/v1/current");
+      const response = requireAuthentication(await fetch("/v1/current"));
       const state = await response.json();
       statusNode.textContent = state ? state.status : "idle";
       for (const element of document.querySelectorAll("form button")) {
@@ -112,7 +129,7 @@
     }
 
     async function refreshArtifacts() {
-      const response = await fetch("/v1/current/artifacts");
+      const response = requireAuthentication(await fetch("/v1/current/artifacts"));
       const items = response.ok ? (await response.json()).items : [];
       for (const [name, id] of [
         ["pytest.log", "#pytest-log"],
@@ -145,6 +162,11 @@
     document.querySelector("#cancel").addEventListener("click", async () => {
       await request("/v1/current/cancel", {});
     });
+    document.querySelector("#logout").addEventListener("click", async () => {
+      await fetch("/auth/logout", {method: "POST"});
+      window.location.replace("/login");
+    });
+    configureAuthentication();
     refresh();
   </script>
 </body>

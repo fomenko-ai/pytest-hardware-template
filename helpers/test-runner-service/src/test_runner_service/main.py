@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 
 from test_runner_service.api import create_router
+from test_runner_service.auth import AuthenticationMiddleware, create_auth_router
 from test_runner_service.docker_commands import DockerCommandBuilder, validate_required_paths
 from test_runner_service.processes import AsyncioProcessRunner, ProcessRunner
 from test_runner_service.settings import Settings
@@ -28,7 +29,7 @@ def create_app(
     )
 
     @asynccontextmanager
-    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
         state_store.initialize()
         validate_required_paths(runtime_settings)
         state_store.mark_interrupted()
@@ -43,7 +44,10 @@ def create_app(
         lifespan=lifespan,
     )
     app.include_router(create_router(coordinator, state_store, runtime_settings))
-    html = Path(__file__).parent / "static" / "index.html"
+    static_directory = Path(__file__).parent / "static"
+    html = static_directory / "index.html"
+    app.include_router(create_auth_router(runtime_settings, static_directory / "login.html"))
+    app.add_middleware(AuthenticationMiddleware, settings=runtime_settings)
 
     @app.get("/", response_class=FileResponse, include_in_schema=False)
     async def index() -> FileResponse:
