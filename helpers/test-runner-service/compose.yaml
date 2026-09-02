@@ -15,6 +15,8 @@ services:
       TEST_RUNNER_FRAMEWORK_DOCKERFILE: ${TEST_RUNNER_FRAMEWORK_DOCKERFILE:-/opt/hardware-runner/framework/Dockerfile}
       TEST_RUNNER_INVENTORY_FILE: ${TEST_RUNNER_INVENTORY_FILE:-/opt/hardware-runner/inventory/stands.yaml}
       TEST_RUNNER_ARTIFACTS_DIRECTORY: ${TEST_RUNNER_ARTIFACTS_DIRECTORY:-/opt/hardware-runner/artifacts}
+      TEST_RUNNER_ENV_FILE: ${TEST_RUNNER_ENV_FILE:-/opt/hardware-runner/test.env}
+      TEST_RUNNER_KNOWN_HOSTS_FILE: ${TEST_RUNNER_KNOWN_HOSTS_FILE:-/opt/hardware-runner/known_hosts}
       TEST_RUNNER_ALLOWED_IMAGE_PREFIXES: ${TEST_RUNNER_ALLOWED_IMAGE_PREFIXES:-sha256:}
       TEST_RUNNER_OPERATION_TIMEOUT_SECONDS: ${TEST_RUNNER_OPERATION_TIMEOUT_SECONDS:-3600}
     volumes:
@@ -23,6 +25,7 @@ services:
       - ${TEST_RUNNER_INVENTORY_DIRECTORY:-/opt/hardware-runner/inventory}:${TEST_RUNNER_INVENTORY_DIRECTORY:-/opt/hardware-runner/inventory}:ro
       - ${TEST_RUNNER_ARTIFACTS_DIRECTORY:-/opt/hardware-runner/artifacts}:${TEST_RUNNER_ARTIFACTS_DIRECTORY:-/opt/hardware-runner/artifacts}
       - ${TEST_RUNNER_STATE_DIRECTORY:-/opt/hardware-runner/state}:/runtime/state
+      - ${TEST_RUNNER_ENV_FILE:-/opt/hardware-runner/test.env}:${TEST_RUNNER_ENV_FILE:-/opt/hardware-runner/test.env}:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2)"]
       interval: 30s
