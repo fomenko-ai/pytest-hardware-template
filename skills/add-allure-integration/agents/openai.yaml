@@ -1,0 +1,4 @@
+interface:
+  display_name: "Add Allure Integration"
+  short_description: "Configure optional Allure reporting for pytest"
+  default_prompt: "Use $add-allure-integration to inspect this project, clarify the required reporting workflow, and implement Allure integration."

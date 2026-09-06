@@ -327,6 +327,12 @@ Clear all generated test artifacts with:
 ./scripts/clean-artifacts.sh
 ```
 
+### Optional Allure reporting
+
+Allure is an optional downstream integration. See [the Allure guide](docs/allure.md) for result
+collection, local viewing, and team publication, or use `$add-allure-integration` for guided setup.
+The template does not install or enable Allure by default.
+
 ## AI agent skills
 
 The repository includes focused skills under `skills/` for AI coding agents:
@@ -334,6 +340,7 @@ The repository includes focused skills under `skills/` for AI coding agents:
 - `add-inventory-device` registers physical equipment in inventory;
 - `add-test-stand` maps equipment to logical stand roles;
 - `add-project-test` creates tests in the appropriate test layer;
+- `add-allure-integration` selects and implements optional Allure integration for the project;
 - `hardware-base-test` creates or updates shared command helpers and class-based hardware tests;
 - `adapt-template-change` analyzes and adapts selected changes from this template into a locally
   customized project;
