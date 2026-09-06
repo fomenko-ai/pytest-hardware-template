@@ -483,3 +483,5 @@ For a single trusted laboratory server that needs an optional HTTP API, live out
 HTML interface, see [`helpers/test-runner-service`](helpers/test-runner-service/README.md). The
 helper is an independently packaged Compose application and keeps its dependencies out of the main
 framework.
+
+![Hardware Test Runner web interface](helpers/test-runner-service/docs/images/ui-overview.png)

@@ -8,6 +8,13 @@ operation history.
 The service is independently packaged from the main `hardware_test` project. It builds Docker CLI
 argument arrays directly and does not import the framework package.
 
+## UI preview
+
+The web interface provides controls for building or pulling an image, running a hardware scenario,
+following live output, and opening the resulting test artifacts.
+
+![Hardware Test Runner web interface](docs/images/ui-overview.png)
+
 ## Runtime contract
 
 The service stores only the current or most recently completed operation:
@@ -88,7 +95,12 @@ TEST_RUNNER_PORT=8081
 ### Authentication
 
 Authentication is disabled by default. To protect the UI, API, event stream, artifacts, and API
-documentation, set the following values in the untracked `.env` file:
+documentation, enable it in the untracked `.env` file. Users are then redirected to the service's
+login page:
+
+![Hardware Test Runner authentication page](docs/images/authentication-login.png)
+
+Set the following values to configure authentication:
 
 ```dotenv
 TEST_RUNNER_AUTH_ENABLED=true
