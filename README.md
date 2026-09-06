@@ -302,6 +302,9 @@ report that can be opened without separate assets. All three files are created a
 pytest CLI options are required. `artifacts/latest.log` is a hard link to the log of the most
 recently started pytest session, so new messages are available through both paths without
 duplicating file data.
+
+![Example self-contained pytest HTML report](helpers/test-runner-service/docs/images/html-report-example.png)
+
 During parallel runs, it points to the session started last; every run still retains its own
 `pytest.log`. At the end of the log, a test-session summary records the number of selected tests,
 result counts, duration, exit code, and node IDs of failed tests. Setup and teardown failures
@@ -483,5 +486,9 @@ For a single trusted laboratory server that needs an optional HTTP API, live out
 HTML interface, see [`helpers/test-runner-service`](helpers/test-runner-service/README.md). The
 helper is an independently packaged Compose application and keeps its dependencies out of the main
 framework.
+
+To exercise that service and the tracked hardware-test path without physical equipment, use the
+[Docker virtual hardware stand](helpers/virtual-stand/README.md). It provides an isolated SSH DUT,
+dedicated inventory, and the `virtual-smoke` scenario for local end-to-end verification.
 
 ![Hardware Test Runner web interface](helpers/test-runner-service/docs/images/ui-overview.png)

@@ -1,0 +1,13 @@
+version: 1
+
+devices:
+  virtual_dut:
+    type: dut
+    model: docker-virtual-dut
+    transport:
+      type: ssh
+      ssh:
+        host: virtual-dut
+        port: 22
+        credentials: virtual-ssh
+        host_key_policy: warn

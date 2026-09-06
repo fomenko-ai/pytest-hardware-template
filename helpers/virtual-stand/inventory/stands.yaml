@@ -1,0 +1,10 @@
+version: 1
+device_files:
+  - devices.yaml
+
+stands:
+  virtual-stand:
+    description: Disposable Docker SSH stand for local end-to-end verification
+    capabilities: [virtual, smoke]
+    devices:
+      dut: virtual_dut

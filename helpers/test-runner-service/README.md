@@ -15,6 +15,11 @@ following live output, and opening the resulting test artifacts.
 
 ![Hardware Test Runner web interface](docs/images/ui-overview.png)
 
+Completed runs expose a self-contained HTML report with the test result, duration, environment,
+and captured logs:
+
+![Example hardware-test HTML report](docs/images/html-report-example.png)
+
 ## Runtime contract
 
 The service stores only the current or most recently completed operation:
@@ -91,6 +96,9 @@ the container port remains `8080`:
 ```dotenv
 TEST_RUNNER_PORT=8081
 ```
+
+Set `TEST_RUNNER_DOCKER_NETWORK` when test containers must join a pre-created Docker network. The
+Docker virtual stand under `helpers/virtual-stand/` uses this setting for local end-to-end tests.
 
 ### Authentication
 
@@ -179,6 +187,29 @@ curl --no-buffer http://127.0.0.1:8080/v1/current/events
 This procedure verifies the runner service, its Docker access, the main framework image, one
 prepared hardware scenario, and publication of all test artifacts. Run the test operation only
 when the selected physical stand is ready.
+
+### Through the UI
+
+After preparing the host paths, credentials, image access, and physical stand described below:
+
+1. Open `http://127.0.0.1:8080/` and sign in if authentication is enabled.
+2. Confirm that the runner status is `idle`, then select **Build image**. Follow **Live output**
+   until the build status becomes `succeeded`. The resulting digest is copied automatically into
+   **Image digest** in the run form.
+3. Enter an approved stand key and scenario name under **Run hardware scenario**, then select
+   **Run tests**. Start this step only when that physical stand is ready and reserved.
+4. Follow **Live output** until the status becomes `passed` or `failed`, and compare the displayed
+   pytest summary with the expected scenario result.
+5. Verify that **Download pytest.log**, **Download JUnit XML**, and **Open HTML report** appear.
+   Open each artifact and confirm that it belongs to the completed run.
+6. Optionally start a safe long-running test and select **Cancel current operation** to verify the
+   cancellation path. Do not perform this check with a state-changing scenario unless its cleanup
+   behavior has already been validated.
+
+The **Pull image** form is an alternative to **Build image** when an immutable image reference is
+already published under a prefix allowed by `TEST_RUNNER_ALLOWED_IMAGE_PREFIXES`.
+
+### Through the API
 
 1. Verify the required host paths from `.env`. The framework directory must contain `Dockerfile`,
    and the inventory directory must contain `stands.yaml` plus every relative file listed in its

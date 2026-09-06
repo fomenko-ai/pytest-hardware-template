@@ -1,0 +1,87 @@
+name: hardware-virtual-stand
+
+services:
+  runtime-config:
+    image: alpine:3.24.1
+    network_mode: none
+    environment:
+      VIRTUAL_DUT_PASSWORD: ${VIRTUAL_STAND_PASSWORD:?set VIRTUAL_STAND_PASSWORD in .env}
+    volumes:
+      - ${VIRTUAL_STAND_RUNTIME_ROOT:?set VIRTUAL_STAND_RUNTIME_ROOT in .env}:/runtime
+    command:
+      - /bin/sh
+      - -eu
+      - -c
+      - |
+        case "$${VIRTUAL_DUT_PASSWORD}" in
+          *[!A-Za-z0-9._-]*)
+            echo "VIRTUAL_STAND_PASSWORD may contain only letters, numbers, dot, underscore, and hyphen" >&2
+            exit 2
+            ;;
+        esac
+        umask 077
+        mkdir -p /runtime/artifacts /runtime/state
+        printf '%s\n' \
+          'HARDWARE_TEST_CREDENTIALS__SSH__virtual-ssh__USERNAME=tester' \
+          "HARDWARE_TEST_CREDENTIALS__SSH__virtual-ssh__PASSWORD=$${VIRTUAL_DUT_PASSWORD}" \
+          >/runtime/test.env
+
+  virtual-dut:
+    build:
+      context: .
+    environment:
+      VIRTUAL_DUT_PASSWORD: ${VIRTUAL_STAND_PASSWORD:?set VIRTUAL_STAND_PASSWORD in .env}
+    networks:
+      virtual-stand:
+        aliases:
+          - virtual-dut
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 22"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+      start_period: 2s
+
+  runner:
+    build:
+      context: ../test-runner-service
+    restart: unless-stopped
+    init: true
+    depends_on:
+      runtime-config:
+        condition: service_completed_successfully
+      virtual-dut:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${TEST_RUNNER_PORT:-8080}:8080"
+    environment:
+      DOCKER_BUILDKIT: "1"
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: ${VIRTUAL_STAND_PROJECT_ROOT}
+      TEST_RUNNER_STATE_DIRECTORY: /runtime/state
+      TEST_RUNNER_FRAMEWORK_SOURCE: ${VIRTUAL_STAND_PROJECT_ROOT:?set VIRTUAL_STAND_PROJECT_ROOT in .env}
+      TEST_RUNNER_FRAMEWORK_DOCKERFILE: ${VIRTUAL_STAND_PROJECT_ROOT}/Dockerfile
+      TEST_RUNNER_INVENTORY_FILE: ${VIRTUAL_STAND_PROJECT_ROOT}/helpers/virtual-stand/inventory/stands.yaml
+      TEST_RUNNER_ARTIFACTS_DIRECTORY: ${VIRTUAL_STAND_RUNTIME_ROOT:?set VIRTUAL_STAND_RUNTIME_ROOT in .env}/artifacts
+      TEST_RUNNER_ENV_FILE: ${VIRTUAL_STAND_RUNTIME_ROOT}/test.env
+      TEST_RUNNER_ALLOWED_IMAGE_PREFIXES: "sha256:"
+      TEST_RUNNER_DOCKER_NETWORK: hardware-virtual-stand
+      TEST_RUNNER_OPERATION_TIMEOUT_SECONDS: ${TEST_RUNNER_OPERATION_TIMEOUT_SECONDS:-3600}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${VIRTUAL_STAND_PROJECT_ROOT}:${VIRTUAL_STAND_PROJECT_ROOT}:ro
+      - ${VIRTUAL_STAND_RUNTIME_ROOT}:${VIRTUAL_STAND_RUNTIME_ROOT}
+      - ${VIRTUAL_STAND_RUNTIME_ROOT}/state:/runtime/state
+    networks:
+      - virtual-stand
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+networks:
+  virtual-stand:
+    name: hardware-virtual-stand

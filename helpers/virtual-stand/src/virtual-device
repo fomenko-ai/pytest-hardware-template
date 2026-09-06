@@ -1,0 +1,35 @@
+#!/bin/sh
+set -eu
+
+command_name="${1:-}"
+case "${command_name}" in
+    status)
+        printf '%s\n' '{"ready": true, "transport": "ssh"}'
+        ;;
+    model)
+        printf '%s\n' 'docker-virtual-dut'
+        ;;
+    echo)
+        shift
+        printf '%s\n' "$*"
+        ;;
+    fail)
+        code="${2:-}"
+        case "${code}" in
+            ''|*[!0-9]*)
+                printf '%s\n' 'fail requires an exit code from 1 to 125' >&2
+                exit 2
+                ;;
+        esac
+        if [ "${code}" -lt 1 ] || [ "${code}" -gt 125 ]; then
+            printf '%s\n' 'fail requires an exit code from 1 to 125' >&2
+            exit 2
+        fi
+        printf 'requested failure with exit code %s\n' "${code}"
+        exit "${code}"
+        ;;
+    *)
+        printf '%s\n' 'usage: virtual-device {status|model|echo TEXT|fail CODE}' >&2
+        exit 2
+        ;;
+esac

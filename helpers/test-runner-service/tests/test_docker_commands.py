@@ -57,6 +57,23 @@ def test_run_command_matches_framework_runtime_contract(settings: Settings) -> N
     )
 
 
+def test_run_command_joins_configured_docker_network(settings: Settings) -> None:
+    network_settings = settings.model_copy(update={"docker_network": "hardware-virtual-stand"})
+
+    command = DockerCommandBuilder(network_settings).run_tests(
+        "run-123",
+        "sha256:abc123",
+        "virtual-stand",
+        "virtual-smoke",
+    )
+
+    network_index = command.index("--network")
+    assert command[network_index : network_index + 2] == (
+        "--network",
+        "hardware-virtual-stand",
+    )
+
+
 def test_remote_image_must_match_allowlist(settings: Settings) -> None:
     builder = DockerCommandBuilder(settings)
 

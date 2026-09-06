@@ -6,7 +6,7 @@ ENV UV_COMPILE_BYTECODE=1 \
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install --yes --no-install-recommends docker-buildx docker-cli \
+    && apt-get install --yes --no-install-recommends docker-buildx docker-cli git \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml uv.lock README.md ./
