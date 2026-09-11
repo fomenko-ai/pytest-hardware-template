@@ -149,7 +149,9 @@ state-changing scenarios also remain project-specific.
 Projects that need a lightweight web interface on one trusted laboratory server can use the
 independently packaged service under `helpers/test-runner-service/`. It provides separate image
 build, image pull, and hardware-run operations, permits one active operation at a time, and exposes
-live output and the normal pytest artifacts through HTTP.
+live output and the normal pytest artifacts through HTTP. Its retained-run page lists artifacts
+from earlier runs even after the current status and console view have reset, and its optional
+Allure integration publishes a shareable report URL and links to the repository report tree.
 
 The service is deployed by its own `compose.yaml` and talks directly to the host Docker daemon. It
 does not replace this launcher for manual or CI-provider-driven runs, and it does not add FastAPI or

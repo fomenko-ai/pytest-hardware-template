@@ -1,7 +1,7 @@
 name: hardware-test-runner
 
 services:
-  runner:
+  test-runner:
     build:
       context: .
     restart: unless-stopped
@@ -29,6 +29,11 @@ services:
       TEST_RUNNER_AUTH_SESSION_SECRET: ${TEST_RUNNER_AUTH_SESSION_SECRET:-}
       TEST_RUNNER_AUTH_SESSION_TTL_SECONDS: ${TEST_RUNNER_AUTH_SESSION_TTL_SECONDS:-604800}
       TEST_RUNNER_AUTH_COOKIE_SECURE: ${TEST_RUNNER_AUTH_COOKIE_SECURE:-false}
+      TEST_RUNNER_ALLURE_ENABLED: ${TEST_RUNNER_ALLURE_ENABLED:-false}
+      TEST_RUNNER_ALLURE_PUBLISHER_IMAGE: ${TEST_RUNNER_ALLURE_PUBLISHER_IMAGE:-local/allure-publisher:3.17.0}
+      TEST_RUNNER_ALLURE_ACCESS_TOKEN: ${TEST_RUNNER_ALLURE_ACCESS_TOKEN:-}
+      TEST_RUNNER_ALLURE_PUBLIC_URL: ${TEST_RUNNER_ALLURE_PUBLIC_URL:-}
+      TEST_RUNNER_ALLURE_REPOSITORY: ${TEST_RUNNER_ALLURE_REPOSITORY:-pytest-hardware-template}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${TEST_RUNNER_FRAMEWORK_SOURCE:-/opt/hardware-runner/framework}:${TEST_RUNNER_FRAMEWORK_SOURCE:-/opt/hardware-runner/framework}:ro

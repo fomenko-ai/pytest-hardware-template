@@ -1,7 +1,14 @@
+from datetime import UTC, datetime
 from pathlib import Path
 from xml.etree import ElementTree
 
-from test_runner_service.models import ArtifactItem, ArtifactList, TestSummary
+from test_runner_service.models import (
+    ArtifactItem,
+    ArtifactList,
+    ArtifactRun,
+    ArtifactRunList,
+    TestSummary,
+)
 
 ALLOWED_ARTIFACTS = {
     "pytest.log": Path("pytest.log"),
@@ -41,7 +48,7 @@ def read_junit_summary(junit_file: Path) -> TestSummary:
     )
 
 
-def list_artifacts(run_directory: Path) -> ArtifactList:
+def list_artifacts(run_directory: Path, url_prefix: str = "/v1/current/artifacts") -> ArtifactList:
     items = []
     for name, relative_path in ALLOWED_ARTIFACTS.items():
         path = run_directory / relative_path
@@ -50,10 +57,37 @@ def list_artifacts(run_directory: Path) -> ArtifactList:
                 ArtifactItem(
                     name=name,
                     size=path.stat().st_size,
-                    download_url=f"/v1/current/artifacts/{name}",
+                    download_url=f"{url_prefix}/{name}",
                 )
             )
     return ArtifactList(items=items)
+
+
+def list_artifact_runs(artifacts_directory: Path) -> ArtifactRunList:
+    root = artifacts_directory.resolve()
+    runs = []
+    for path in artifacts_directory.iterdir():
+        resolved = path.resolve()
+        if not path.is_dir() or resolved.parent != root:
+            continue
+        artifacts = list_artifacts(path, f"/v1/artifact-runs/{path.name}")
+        if not artifacts.items:
+            continue
+        runs.append(
+            ArtifactRun(
+                run_id=path.name,
+                modified_at=datetime.fromtimestamp(path.stat().st_mtime, UTC),
+                items=artifacts.items,
+            )
+        )
+    runs.sort(key=lambda run: run.modified_at, reverse=True)
+    return ArtifactRunList(items=runs)
+
+
+def resolve_run_directory(artifacts_directory: Path, run_id: str) -> Path | None:
+    root = artifacts_directory.resolve()
+    path = (root / run_id).resolve()
+    return path if path.parent == root and path.is_dir() else None
 
 
 def resolve_artifact(run_directory: Path, name: str) -> Path | None:

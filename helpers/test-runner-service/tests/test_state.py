@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from test_runner_service.models import OperationState, OperationStatus, OperationType
 from test_runner_service.settings import Settings
@@ -59,3 +60,8 @@ def test_comma_separated_environment_settings(monkeypatch: pytest.MonkeyPatch) -
         "registry.example/hardware-tests@sha256:",
     )
     assert settings.docker_devices == ("/dev/ttyUSB0", "/dev/ttyUSB1")
+
+
+def test_allure_requires_report_access_token_when_enabled() -> None:
+    with pytest.raises(ValidationError, match="TEST_RUNNER_ALLURE_ACCESS_TOKEN"):
+        Settings(_env_file=None, allure_enabled=True)

@@ -1,4 +1,5 @@
 import asyncio
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -13,7 +14,12 @@ class ProcessResult:
 
 
 class ProcessRunner(Protocol):
-    async def run(self, command: tuple[str, ...], log_file: Path) -> ProcessResult: ...
+    async def run(
+        self,
+        command: tuple[str, ...],
+        log_file: Path,
+        environment: dict[str, str] | None = None,
+    ) -> ProcessResult: ...
 
     async def cancel(self, container_name: str | None) -> None: ...
 
@@ -22,11 +28,17 @@ class AsyncioProcessRunner:
     def __init__(self) -> None:
         self._process: asyncio.subprocess.Process | None = None
 
-    async def run(self, command: tuple[str, ...], log_file: Path) -> ProcessResult:
+    async def run(
+        self,
+        command: tuple[str, ...],
+        log_file: Path,
+        environment: dict[str, str] | None = None,
+    ) -> ProcessResult:
         process = await asyncio.create_subprocess_exec(
             *command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
+            env=os.environ | environment if environment is not None else None,
         )
         self._process = process
         output = ""

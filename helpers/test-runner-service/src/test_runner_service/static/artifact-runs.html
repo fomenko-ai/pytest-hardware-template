@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Test artifact runs</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 70rem; margin: 0 auto; padding: 2rem; }
+    a, a:visited { color: LinkText; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: .65rem; border-bottom: 1px solid #7776; text-align: left; }
+    .links { display: flex; gap: .8rem; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <p><a href="/">Back to Test Runner</a></p>
+  <h1>Test artifact runs</h1>
+  <table>
+    <thead><tr><th>Run</th><th>Last modified</th><th>Artifacts</th></tr></thead>
+    <tbody id="runs"><tr><td colspan="3">Loading…</td></tr></tbody>
+  </table>
+  <script>
+    const labels = {
+      "pytest.log": "Download pytest.log",
+      "junit.xml": "Download JUnit XML",
+      "report.html": "Open HTML report",
+    };
+
+    async function loadRuns() {
+      const response = await fetch("/v1/artifact-runs");
+      if (response.status === 401) {
+        window.location.replace("/login");
+        return;
+      }
+      const payload = await response.json();
+      const body = document.querySelector("#runs");
+      body.textContent = "";
+      for (const run of payload.items) {
+        const row = document.createElement("tr");
+        const id = document.createElement("td");
+        id.textContent = run.run_id;
+        const modified = document.createElement("td");
+        modified.textContent = new Date(run.modified_at).toLocaleString();
+        const links = document.createElement("td");
+        links.className = "links";
+        for (const artifact of run.items) {
+          const link = document.createElement("a");
+          link.href = artifact.download_url;
+          link.textContent = labels[artifact.name] ?? artifact.name;
+          if (artifact.name === "report.html") {
+            link.target = "_blank";
+            link.rel = "noopener";
+          }
+          links.append(link);
+        }
+        row.append(id, modified, links);
+        body.append(row);
+      }
+      if (!payload.items.length) {
+        body.innerHTML = '<tr><td colspan="3">No test artifacts found.</td></tr>';
+      }
+    }
+
+    loadRuns();
+  </script>
+</body>
+</html>

@@ -13,6 +13,7 @@ from hardware_test.scenarios import ScenarioError, load_scenario, parse_marker_s
 
 _MUTED_LOG_LEVEL = logging.CRITICAL + 1
 _MARKER_SEQUENCE_KEY = pytest.StashKey[tuple[str, ...]]()
+_RUN_DIRECTORY_KEY = pytest.StashKey[Path]()
 _SUMMARY_WIDTH = 100
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,7 @@ def pytest_configure(config: pytest.Config) -> None:
 
     run_id = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S_%f")
     run_dir = config.rootpath / "artifacts" / run_id
+    config.stash[_RUN_DIRECTORY_KEY] = run_dir
     reports_dir = run_dir / "reports"
     reports_dir.mkdir(parents=True, exist_ok=False)
     log_path = run_dir / "pytest.log"
@@ -169,6 +171,11 @@ def _summary_count(terminalreporter: pytest.TerminalReporter, category: str) -> 
         getattr(report, "count_towards_summary", True)
         for report in terminalreporter.stats.get(category, ())
     )
+
+
+def get_run_directory(config: pytest.Config) -> Path:
+    """Return the artifact directory allocated for the current pytest session."""
+    return config.stash[_RUN_DIRECTORY_KEY]
 
 
 @pytest.fixture

@@ -1,6 +1,6 @@
 ---
 name: add-allure-integration
-description: Add or adapt optional Allure reporting in a pytest hardware project. Use when the user wants an implemented integration for local viewing, CI or server publication, or an existing Allure service; clarify the required workflow before choosing infrastructure.
+description: Add or adapt optional Allure reporting in a pytest hardware project. Use for local viewing, CI or server publication, integration with an existing Allure service, or help configuring Report Storage, a publisher, Test Runner, and hardware stands.
 ---
 
 # Add Allure Integration
@@ -44,6 +44,19 @@ and the names or locations of runtime secret references. Do not request token va
 Use environment variables or the project's secret store. Ask about network restrictions and
 history grouping only when applicable. Continue independent inspection while awaiting answers;
 do not invent required connection details or treat unanswered questions as approval.
+
+## Guide configuration explicitly
+
+When publication through a runner or hardware stand is selected, treat configuration as a distinct
+deliverable rather than merely listing environment-variable names. Locate the tracked example files,
+explain which untracked files the user must create, and help determine every non-secret value from
+the actual deployment. Offer a copy-ready configuration block with secret placeholders, but never
+write, print, request, or persist real token and password values.
+
+Read the [publication configuration guide](references/configuration.md) when configuring Report
+Storage, the disposable publisher, Test Runner, or a virtual/physical stand. It defines credential
+roles, the non-obvious endpoint reachability rule, template file mapping, verification order, and
+layered diagnostics. Use only the portions relevant to the selected deployment.
 
 ## Define the change
 

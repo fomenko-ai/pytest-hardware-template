@@ -329,9 +329,16 @@ Clear all generated test artifacts with:
 
 ### Optional Allure reporting
 
-Allure is an optional downstream integration. See [the Allure guide](docs/allure.md) for result
-collection, local viewing, and team publication, or use `$add-allure-integration` for guided setup.
-The template does not install or enable Allure by default.
+Install the optional adapter and collect raw Allure results inside the standard run directory:
+
+```bash
+uv run --group allure pytest tests/unit tests/integration --allure
+```
+
+The independently deployable `helpers/allure/` stack provides Allure 3 generation and official
+Allure Report Storage for local or server-hosted reports. See [the Allure guide](docs/allure.md)
+for the data flow, setup, publication, retained-report browsing, and optional Test Runner
+integration. Allure remains disabled by default.
 
 ## AI agent skills
 
@@ -340,12 +347,12 @@ The repository includes focused skills under `skills/` for AI coding agents:
 - `add-inventory-device` registers physical equipment in inventory;
 - `add-test-stand` maps equipment to logical stand roles;
 - `add-project-test` creates tests in the appropriate test layer;
-- `add-allure-integration` selects and implements optional Allure integration for the project;
 - `hardware-base-test` creates or updates shared command helpers and class-based hardware tests;
 - `adapt-template-change` analyzes and adapts selected changes from this template into a locally
   customized project;
 - `adapt-internal-infrastructure` adapts Docker and CI configuration for private registries,
-  proxies, corporate certificates, and other closed-network requirements.
+  proxies, corporate certificates, and other closed-network requirements;
+- `add-allure-integration` selects and implements optional Allure integration for the project.
 
 To migrate a template feature or fix, invoke `adapt-template-change` and describe the desired
 behavior. Optionally provide a commit, pull request, file link, patch, or local template checkout:
@@ -492,10 +499,17 @@ activation instructions.
 For a single trusted laboratory server that needs an optional HTTP API, live output, and a minimal
 HTML interface, see [`helpers/test-runner-service`](helpers/test-runner-service/README.md). The
 helper is an independently packaged Compose application and keeps its dependencies out of the main
-framework.
+framework. Its UI links to the current run while the page remains open, provides a persistent index
+of every retained local artifact directory, and can link to the configured Allure repository tree.
+
+![Hardware Test Runner web interface](helpers/test-runner-service/docs/images/ui-overview.png)
+
+![Retained Test Runner artifact runs](helpers/test-runner-service/docs/images/artifact-runs.png)
+
+![Allure reports grouped by branch](helpers/test-runner-service/docs/images/allure-reports.png)
 
 To exercise that service and the tracked hardware-test path without physical equipment, use the
 [Docker virtual hardware stand](helpers/virtual-stand/README.md). It provides an isolated SSH DUT,
 dedicated inventory, and the `virtual-smoke` scenario for local end-to-end verification.
 
-![Hardware Test Runner web interface](helpers/test-runner-service/docs/images/ui-overview.png)
+![Successful virtual stand test run](helpers/test-runner-service/docs/images/virtual-stand-run.png)

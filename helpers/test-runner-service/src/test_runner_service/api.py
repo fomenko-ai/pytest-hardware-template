@@ -2,19 +2,27 @@ import asyncio
 import json
 from collections.abc import AsyncIterator
 from pathlib import Path
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import FileResponse, StreamingResponse
 
-from test_runner_service.artifacts import list_artifacts, resolve_artifact
+from test_runner_service.artifacts import (
+    list_artifact_runs,
+    list_artifacts,
+    resolve_artifact,
+    resolve_run_directory,
+)
 from test_runner_service.docker_commands import InvalidImageReferenceError
 from test_runner_service.models import (
     AcceptedOperation,
     ArtifactList,
+    ArtifactRunList,
     BuildImageRequest,
     OperationState,
     PullImageRequest,
     RunTestsRequest,
+    UiConfig,
 )
 from test_runner_service.settings import Settings
 from test_runner_service.state import StateStore
@@ -39,6 +47,14 @@ def create_router(
     @router.get("/v1/current", response_model=OperationState | None)
     async def current() -> OperationState | None:
         return state_store.read()
+
+    @router.get("/v1/config", response_model=UiConfig)
+    async def ui_config() -> UiConfig:
+        if not settings.allure_enabled or settings.allure_public_url is None:
+            return UiConfig()
+        query = urlencode({"repo": settings.allure_repository})
+        base_url = str(settings.allure_public_url).rstrip("/")
+        return UiConfig(allure_reports_url=f"{base_url}/reports/tree?{query}")
 
     @router.post(
         "/v1/images/build",
@@ -100,6 +116,22 @@ def create_router(
     @router.get("/v1/current/artifacts/{name}", response_class=FileResponse)
     async def artifact(name: str) -> FileResponse:
         run_directory = _current_artifact_directory(state_store, settings)
+        path = resolve_artifact(run_directory, name)
+        if path is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "artifact not found")
+        if name == "report.html":
+            return FileResponse(path)
+        return FileResponse(path, filename=name)
+
+    @router.get("/v1/artifact-runs", response_model=ArtifactRunList)
+    async def artifact_runs() -> ArtifactRunList:
+        return list_artifact_runs(settings.artifacts_directory)
+
+    @router.get("/v1/artifact-runs/{run_id}/{name}", response_class=FileResponse)
+    async def historical_artifact(run_id: str, name: str) -> FileResponse:
+        run_directory = resolve_run_directory(settings.artifacts_directory, run_id)
+        if run_directory is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "artifact run not found")
         path = resolve_artifact(run_directory, name)
         if path is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "artifact not found")

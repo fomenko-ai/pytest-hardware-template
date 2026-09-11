@@ -46,11 +46,16 @@ def create_app(
     app.include_router(create_router(coordinator, state_store, runtime_settings))
     static_directory = Path(__file__).parent / "static"
     html = static_directory / "index.html"
+    artifact_runs_html = static_directory / "artifact-runs.html"
     app.include_router(create_auth_router(runtime_settings, static_directory / "login.html"))
     app.add_middleware(AuthenticationMiddleware, settings=runtime_settings)
 
     @app.get("/", response_class=FileResponse, include_in_schema=False)
     async def index() -> FileResponse:
         return FileResponse(html)
+
+    @app.get("/artifact-runs", response_class=FileResponse, include_in_schema=False)
+    async def artifact_runs() -> FileResponse:
+        return FileResponse(artifact_runs_html)
 
     return app

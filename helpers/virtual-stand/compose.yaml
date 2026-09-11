@@ -42,7 +42,7 @@ services:
       retries: 15
       start_period: 2s
 
-  runner:
+  test-runner:
     build:
       context: ../test-runner-service
     restart: unless-stopped
@@ -68,6 +68,11 @@ services:
       TEST_RUNNER_ALLOWED_IMAGE_PREFIXES: "sha256:"
       TEST_RUNNER_DOCKER_NETWORK: hardware-virtual-stand
       TEST_RUNNER_OPERATION_TIMEOUT_SECONDS: ${TEST_RUNNER_OPERATION_TIMEOUT_SECONDS:-3600}
+      TEST_RUNNER_ALLURE_ENABLED: ${TEST_RUNNER_ALLURE_ENABLED:-false}
+      TEST_RUNNER_ALLURE_PUBLISHER_IMAGE: ${TEST_RUNNER_ALLURE_PUBLISHER_IMAGE:-local/allure-publisher:3.17.0}
+      TEST_RUNNER_ALLURE_ACCESS_TOKEN: ${TEST_RUNNER_ALLURE_ACCESS_TOKEN:-}
+      TEST_RUNNER_ALLURE_PUBLIC_URL: ${TEST_RUNNER_ALLURE_PUBLIC_URL:-}
+      TEST_RUNNER_ALLURE_REPOSITORY: ${TEST_RUNNER_ALLURE_REPOSITORY:-pytest-hardware-template}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${VIRTUAL_STAND_PROJECT_ROOT}:${VIRTUAL_STAND_PROJECT_ROOT}:ro

@@ -44,6 +44,20 @@ curl --fail http://127.0.0.1:8080/health
 The runner UI is available at `http://127.0.0.1:8080/`. The virtual DUT publishes no host port; it
 is reachable only by containers attached to `hardware-virtual-stand`.
 
+To publish the virtual run to an already deployed Allure Report Storage instance, first build the
+publisher from `helpers/allure/`, mint its `ars1...` report-access token, and add these values to
+this helper's ignored `.env`:
+
+```dotenv
+TEST_RUNNER_ALLURE_ENABLED=true
+TEST_RUNNER_ALLURE_PUBLISHER_IMAGE=local/allure-publisher:3.17.0
+TEST_RUNNER_ALLURE_ACCESS_TOKEN=ars1.replace-with-report-access-token
+TEST_RUNNER_ALLURE_PUBLIC_URL=http://127.0.0.1:3000
+TEST_RUNNER_ALLURE_REPOSITORY=pytest-hardware-template
+```
+
+Use a browser-reachable server address instead of loopback when Storage runs on another host.
+
 The disposable DUT generates a new SSH host key when its container is recreated. Its dedicated
 inventory therefore uses the framework's `warn` policy. Do not copy that policy into a physical
 stand: real equipment should use a persistent trusted `known_hosts` file and `reject` or
@@ -68,6 +82,9 @@ stand: real equipment should use a persistent trusted `known_hosts` file and `re
    summary reports one passed test.
 5. Open **Download pytest.log**, **Download JUnit XML**, and **Open HTML report** to verify that all
    three run artifacts are available and contain the `TestVirtualDut.test_command_path` result.
+6. Open **All test artifacts** to find this and earlier retained local runs. When Allure is enabled,
+   open **Open Allure report** before reloading for the current publication, or use persistent
+   **All Allure reports** to browse the repository tree afterward.
 
 ### Through the API
 

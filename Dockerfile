@@ -5,15 +5,25 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 WORKDIR /app
 
+ARG INSTALL_ALLURE=false
+
 COPY pyproject.toml uv.lock README.md LICENSE ./
 COPY src/ ./src/
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-install-project
+    if [ "$INSTALL_ALLURE" = "true" ]; then \
+        uv sync --locked --no-install-project --group allure; \
+    else \
+        uv sync --locked --no-install-project; \
+    fi
 
 COPY . .
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked
+    if [ "$INSTALL_ALLURE" = "true" ]; then \
+        uv sync --locked --group allure; \
+    else \
+        uv sync --locked; \
+    fi
 
 CMD ["uv", "run", "pytest", "tests/unit", "tests/integration"]

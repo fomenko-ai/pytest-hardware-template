@@ -11,14 +11,31 @@ argument arrays directly and does not import the framework package.
 ## UI preview
 
 The web interface provides controls for building or pulling an image, running a hardware scenario,
-following live output, and opening the resulting test artifacts.
+following live output, opening the current result, and browsing retained reports. **All test
+artifacts** opens the local artifact-run index; **All Allure reports** opens the configured Allure
+Storage repository tree.
 
 ![Hardware Test Runner web interface](docs/images/ui-overview.png)
+
+The artifact index remains available after the current status, console, and direct report links
+have reset on a page reload:
+
+![Retained test artifact runs](docs/images/artifact-runs.png)
 
 Completed runs expose a self-contained HTML report with the test result, duration, environment,
 and captured logs:
 
 ![Example hardware-test HTML report](docs/images/html-report-example.png)
+
+The Allure repository tree groups retained reports by branch and shows their publication date and
+time. Select a report identifier under the required branch to open it:
+
+![Allure reports grouped by branch](docs/images/allure-reports.png)
+
+The selected entry opens the complete interactive Allure report with test results, quality gates,
+attachments, errors, and navigation through the test hierarchy:
+
+![Example Allure test report](docs/images/allure-report.png)
 
 ## Runtime contract
 
@@ -37,6 +54,7 @@ Hardware-test results keep the main project's standard layout:
 ├── latest.log
 └── <pytest-run-id>/
     ├── pytest.log
+    ├── allure-results/        # only when optional Allure publication is enabled
     └── reports/
         ├── junit.xml
         └── report.html
@@ -72,6 +90,32 @@ export TEST_RUNNER_ALLOWED_IMAGE_PREFIXES='sha256:,registry.example.com/hardware
 ```
 
 The default permits only local image IDs returned by a successful build.
+
+### Optional Allure publication
+
+Deploy and prepare `helpers/allure/` first, including its pinned publisher image and an `ars1...`
+report-access token. Then add the following to this helper's untracked `.env`:
+
+```dotenv
+TEST_RUNNER_ALLURE_ENABLED=true
+TEST_RUNNER_ALLURE_PUBLISHER_IMAGE=local/allure-publisher:3.17.0
+TEST_RUNNER_ALLURE_ACCESS_TOKEN=ars1.replace-with-report-access-token
+TEST_RUNNER_ALLURE_PUBLIC_URL=https://allure.example
+TEST_RUNNER_ALLURE_REPOSITORY=pytest-hardware-template
+```
+
+When enabled, locally built framework images include the root project's `allure` dependency group.
+Remote images must already include that group. The runner collects raw results inside the standard
+run directory and invokes the disposable publisher after pytest exits, including after test failures.
+The pytest result and Allure publication result are independent: `/v1/current` keeps the original
+test `status` and `exit_code` and adds `report_status`, `report_url`, or `report_message`.
+
+The access token is passed through the publisher environment without appearing in Docker command
+arguments or operation state. Do not use the broader Storage bootstrap token here.
+`TEST_RUNNER_ALLURE_REPOSITORY` is the stable repository name used by Storage; browse its reports
+at `/reports/tree?repo=pytest-hardware-template`.
+`TEST_RUNNER_ALLURE_PUBLIC_URL` is the browser-reachable Storage origin. When set, the UI exposes
+**All Allure reports**; this is separate from **Open Allure report** for the latest publication.
 
 ## Start with Docker Compose
 
@@ -141,6 +185,7 @@ therefore mounted into the service at the same absolute paths that the service p
 
 ```text
 GET    /                         lightweight HTML UI
+GET    /artifact-runs            retained local artifact UI
 GET    /login                    login page when authentication is enabled
 GET    /auth/status              whether authentication is enabled
 POST   /auth/login
@@ -154,7 +199,16 @@ POST   /v1/images/pull
 POST   /v1/runs
 GET    /v1/current/artifacts
 GET    /v1/current/artifacts/{pytest.log|junit.xml|report.html}
+GET    /v1/artifact-runs
+GET    /v1/artifact-runs/{run-id}/{pytest.log|junit.xml|report.html}
+GET    /v1/config
 ```
+
+When Allure is enabled, a completed state may also contain a directly published `report_url`. The
+web UI displays it as **Open Allure report** until the page is reloaded.
+The UI also provides **All test artifacts**, a retained-run index backed by `/v1/artifact-runs`.
+When an Allure public URL is configured, **All Allure reports** opens the Storage tree for the
+configured repository. These two history links remain available after reload.
 
 Build the configured checkout:
 
@@ -202,7 +256,10 @@ After preparing the host paths, credentials, image access, and physical stand de
    pytest summary with the expected scenario result.
 5. Verify that **Download pytest.log**, **Download JUnit XML**, and **Open HTML report** appear.
    Open each artifact and confirm that it belongs to the completed run.
-6. Optionally start a safe long-running test and select **Cancel current operation** to verify the
+6. Open **All test artifacts** and confirm that the run remains available in the retained index.
+   When Allure is enabled, verify both **Open Allure report** for this run and **All Allure
+   reports** for the repository history.
+7. Optionally start a safe long-running test and select **Cancel current operation** to verify the
    cancellation path. Do not perform this check with a state-changing scenario unless its cleanup
    behavior has already been validated.
 
@@ -281,7 +338,7 @@ already published under a prefix allowed by `TEST_RUNNER_ALLOWED_IMAGE_PREFIXES`
 8. Inspect service diagnostics when an operation fails, then stop the service when finished:
 
    ```bash
-   docker compose logs runner
+   docker compose logs test-runner
    docker compose down
    ```
 
@@ -294,6 +351,10 @@ stand before starting another operation.
 Starting a new operation replaces `current.json` and `current.log`. Run-specific pytest artifacts
 remain under the configured artifacts directory and are cleaned through the main project's normal
 artifact retention procedure.
+
+Reloading the UI intentionally presents an old terminal operation as `idle`, clears the live
+console, and hides its direct artifact and Allure links. It still restores reusable form values.
+Use **All test artifacts** or **All Allure reports** to find completed reports after a reload.
 
 ## Development verification
 

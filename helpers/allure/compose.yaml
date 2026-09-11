@@ -1,0 +1,31 @@
+name: hardware-allure
+
+services:
+  storage:
+    image: allure/allure-report-storage:v1.0.1
+    restart: unless-stopped
+    environment:
+      ACCESS_TOKEN: ${ALLURE_STORAGE_BOOTSTRAP_TOKEN:?set ALLURE_STORAGE_BOOTSTRAP_TOKEN in .env}
+      DATABASE_PATH: /data/reports.sqlite
+      DATA_DIR: /data
+      HOST: 0.0.0.0
+      MAIN_BRANCH: ${ALLURE_MAIN_BRANCH:-main}
+      PORT: "3000"
+      SECRET: ${ALLURE_STORAGE_SIGNING_SECRET:?set ALLURE_STORAGE_SIGNING_SECRET in .env}
+    ports:
+      - "${ALLURE_BIND_ADDRESS:-127.0.0.1}:${ALLURE_PORT:-3000}:3000"
+    volumes:
+      - report-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000/api/ping').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  report-data:

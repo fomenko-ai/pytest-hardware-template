@@ -8,13 +8,17 @@
     :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
     body { max-width: 70rem; margin: 0 auto; padding: 2rem; }
     h1, h2 { margin-bottom: .5rem; }
-    .page-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-    .page-header h1 { margin-top: 0; }
+    .page-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+      margin-bottom: 1rem; }
+    .page-header h1 { margin: 0; }
+    .status-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+    .status-row p { margin: 0; }
     section { border: 1px solid #7776; border-radius: .5rem; padding: 1rem; margin: 1rem 0; }
     form { display: grid; gap: .7rem; grid-template-columns: 9rem minmax(15rem, 1fr); }
     label { align-self: center; }
     input, button { padding: .55rem; font: inherit; }
     button { cursor: pointer; }
+    a, a:visited { color: LinkText; }
     form button { grid-column: 2; justify-self: start; }
     #output { min-height: 16rem; max-height: 32rem; overflow: auto; white-space: pre-wrap;
       padding: 1rem; background: #111; color: #ddd; border-radius: .4rem; }
@@ -28,7 +32,13 @@
     <h1>Hardware Test Runner</h1>
     <button id="logout" type="button" hidden>Sign out</button>
   </header>
-  <p>Runner status: <span id="status" class="status">loading</span></p>
+  <div class="status-row">
+    <p>Runner status: <span id="status" class="status">loading</span></p>
+    <nav class="actions" aria-label="Report history">
+      <a href="/artifact-runs">All test artifacts</a>
+      <a id="allure-reports" target="_blank" rel="noopener" hidden>All Allure reports</a>
+    </nav>
+  </div>
 
   <section>
     <h2>Build configured framework checkout</h2>
@@ -67,6 +77,7 @@
       <a id="pytest-log" hidden>Download pytest.log</a>
       <a id="junit" hidden>Download JUnit XML</a>
       <a id="html-report" target="_blank" rel="noopener" hidden>Open HTML report</a>
+      <a id="allure-report" target="_blank" rel="noopener" hidden>Open Allure report</a>
     </div>
     <h2>Live output</h2>
     <pre id="output"></pre>
@@ -75,6 +86,8 @@
   <script>
     const statusNode = document.querySelector("#status");
     const outputNode = document.querySelector("#output");
+    const terminalStatuses = ["succeeded", "passed", "failed", "cancelled", "timed_out",
+      "infrastructure_error", "interrupted"];
     let events;
 
     function requireAuthentication(response) {
@@ -88,6 +101,14 @@
       document.querySelector("#logout").hidden = !auth.enabled;
     }
 
+    async function configureReportLinks() {
+      const response = requireAuthentication(await fetch("/v1/config"));
+      const config = await response.json();
+      const link = document.querySelector("#allure-reports");
+      link.hidden = !config.allure_reports_url;
+      if (config.allure_reports_url) link.href = config.allure_reports_url;
+    }
+
     async function request(path, body) {
       const response = requireAuthentication(await fetch(path, {
         method: "POST",
@@ -98,7 +119,7 @@
       if (!response.ok) throw new Error(JSON.stringify(payload.detail));
       outputNode.textContent = "";
       connectEvents();
-      await refresh();
+      await refresh(true);
     }
 
     function connectEvents() {
@@ -112,23 +133,39 @@
       });
       events.addEventListener("status", async event => {
         events.close();
-        await refresh();
+        await refresh(true);
       });
     }
 
-    async function refresh() {
+    async function refresh(showTerminalResult = false) {
       const response = requireAuthentication(await fetch("/v1/current"));
       const state = await response.json();
-      statusNode.textContent = state ? state.status : "idle";
+      const terminal = state && terminalStatuses.includes(state.status);
+      statusNode.textContent = state && (!terminal || showTerminalResult) ? state.status : "idle";
+      const allureLink = document.querySelector("#allure-report");
+      allureLink.hidden = !(showTerminalResult && state && state.report_url);
+      if (!allureLink.hidden) allureLink.href = state.report_url;
       for (const element of document.querySelectorAll("form button")) {
-        element.disabled = state && !["succeeded", "passed", "failed", "cancelled",
-          "timed_out", "infrastructure_error", "interrupted"].includes(state.status);
+        element.disabled = state && !terminal;
       }
-      if (state && state.image_digest) document.querySelector("#run-image").value = state.image_digest;
-      await refreshArtifacts();
+      const image = state && (state.image_digest ?? state.image_reference);
+      if (image) document.querySelector("#run-image").value = image;
+      if (state && state.operation_type === "pull_image" && state.image_reference) {
+        document.querySelector("#pull-reference").value = state.image_reference;
+      }
+      if (state && state.stand) document.querySelector("#stand").value = state.stand;
+      if (state && state.scenario) document.querySelector("#scenario").value = state.scenario;
+      await refreshArtifacts(showTerminalResult);
+      return state;
     }
 
-    async function refreshArtifacts() {
+    async function refreshArtifacts(showTerminalResult) {
+      if (!showTerminalResult) {
+        for (const id of ["#pytest-log", "#junit", "#html-report"]) {
+          document.querySelector(id).hidden = true;
+        }
+        return;
+      }
       const response = requireAuthentication(await fetch("/v1/current/artifacts"));
       const items = response.ok ? (await response.json()).items : [];
       for (const [name, id] of [
@@ -166,8 +203,14 @@
       await fetch("/auth/logout", {method: "POST"});
       window.location.replace("/login");
     });
-    configureAuthentication();
-    refresh();
+    async function initialize() {
+      await configureAuthentication();
+      await configureReportLinks();
+      const state = await refresh(false);
+      if (state && !terminalStatuses.includes(state.status)) connectEvents();
+    }
+
+    initialize();
   </script>
 </body>
 </html>

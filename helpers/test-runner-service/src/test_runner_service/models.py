@@ -39,6 +39,11 @@ class OperationStatus(StrEnum):
         }
 
 
+class ReportStatus(StrEnum):
+    PUBLISHED = "published"
+    FAILED = "failed"
+
+
 class TestSummary(BaseModel):
     total: int = 0
     passed: int = 0
@@ -65,6 +70,9 @@ class OperationState(BaseModel):
     exit_code: int | None = None
     artifact_directory: str | None = None
     summary: TestSummary | None = None
+    report_status: ReportStatus | None = None
+    report_url: str | None = None
+    report_message: str | None = None
     message: str | None = None
 
     @classmethod
@@ -110,9 +118,17 @@ class PullImageRequest(BaseModel):
 class RunTestsRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    image: str = Field(min_length=1, max_length=512)
-    stand: str = Field(pattern=NAME_PATTERN, max_length=128)
-    scenario: str = Field(pattern=SCENARIO_PATTERN, max_length=128)
+    image: str = Field(
+        min_length=1,
+        max_length=512,
+        examples=["sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"],
+    )
+    stand: str = Field(pattern=NAME_PATTERN, max_length=128, examples=["virtual-stand"])
+    scenario: str = Field(
+        pattern=SCENARIO_PATTERN,
+        max_length=128,
+        examples=["virtual-smoke"],
+    )
 
 
 class AcceptedOperation(BaseModel):
@@ -130,3 +146,17 @@ class ArtifactItem(BaseModel):
 
 class ArtifactList(BaseModel):
     items: list[ArtifactItem]
+
+
+class ArtifactRun(BaseModel):
+    run_id: str
+    modified_at: datetime
+    items: list[ArtifactItem]
+
+
+class ArtifactRunList(BaseModel):
+    items: list[ArtifactRun]
+
+
+class UiConfig(BaseModel):
+    allure_reports_url: str | None = None

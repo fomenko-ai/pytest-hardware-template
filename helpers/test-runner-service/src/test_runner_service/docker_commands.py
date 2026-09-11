@@ -23,15 +23,18 @@ class DockerCommandBuilder:
 
     def build_image(self, operation_id: str) -> tuple[str, ...]:
         tag = f"local/hardware-tests:{operation_id}"
-        return (
+        arguments = [
             "docker",
             "build",
             "--file",
             str(self.settings.framework_dockerfile),
             "--tag",
             tag,
-            str(self.settings.framework_source),
-        )
+        ]
+        if self.settings.allure_enabled:
+            arguments.extend(("--build-arg", "INSTALL_ALLURE=true"))
+        arguments.append(str(self.settings.framework_source))
+        return tuple(arguments)
 
     def pull_image(self, reference: str) -> tuple[str, ...]:
         self.validate_remote_image(reference)
@@ -94,7 +97,39 @@ class DockerCommandBuilder:
                 stand,
             )
         )
+        if self.settings.allure_enabled:
+            arguments.append("--allure")
         return tuple(arguments)
+
+    def publish_allure(self, operation_id: str, run_directory: Path) -> tuple[str, ...]:
+        container_name = f"allure-publish-{operation_id}"
+        repository_directory = f"/workspace/{self.settings.allure_repository}"
+        return (
+            "docker",
+            "run",
+            "--rm",
+            "--name",
+            container_name,
+            "--env",
+            "ALLURE_ACCESS_TOKEN",
+            "--env",
+            "GIT_CONFIG_COUNT=1",
+            "--env",
+            "GIT_CONFIG_KEY_0=safe.directory",
+            "--env",
+            f"GIT_CONFIG_VALUE_0={repository_directory}",
+            "--volume",
+            f"{self.settings.framework_source}:{repository_directory}:ro",
+            "--volume",
+            f"{run_directory / 'allure-results'}:/results:ro",
+            "--workdir",
+            repository_directory,
+            self.settings.allure_publisher_image,
+            "generate",
+            "/results",
+            "--config",
+            "/opt/allure/allurerc.mjs",
+        )
 
     def stop_container(self, operation_id: str) -> tuple[str, ...]:
         return ("docker", "stop", f"hardware-test-run-{operation_id}")

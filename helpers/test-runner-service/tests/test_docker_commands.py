@@ -74,6 +74,36 @@ def test_run_command_joins_configured_docker_network(settings: Settings) -> None
     )
 
 
+def test_allure_enabled_build_and_run_commands(settings: Settings) -> None:
+    allure_settings = settings.model_copy(
+        update={"allure_enabled": True, "allure_access_token": "ars1.secret"}
+    )
+    builder = DockerCommandBuilder(allure_settings)
+
+    build = builder.build_image("build-123")
+    run = builder.run_tests("run-123", "sha256:abc123", "stand-01", "hardware-smoke")
+
+    assert build[-3:] == ("--build-arg", "INSTALL_ALLURE=true", str(settings.framework_source))
+    assert run[-1] == "--allure"
+
+
+def test_allure_publisher_mounts_only_the_selected_run(settings: Settings) -> None:
+    run_directory = settings.artifacts_directory / "run-123"
+    command = DockerCommandBuilder(settings).publish_allure("run-123", run_directory)
+
+    assert "ALLURE_ACCESS_TOKEN" in command
+    assert "ars1" not in " ".join(command)
+    assert f"{settings.framework_source}:/workspace/{settings.allure_repository}:ro" in command
+    assert f"GIT_CONFIG_VALUE_0=/workspace/{settings.allure_repository}" in command
+    assert f"{run_directory / 'allure-results'}:/results:ro" in command
+    assert command[-4:] == (
+        "generate",
+        "/results",
+        "--config",
+        "/opt/allure/allurerc.mjs",
+    )
+
+
 def test_remote_image_must_match_allowlist(settings: Settings) -> None:
     builder = DockerCommandBuilder(settings)
 

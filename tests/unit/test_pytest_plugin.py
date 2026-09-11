@@ -8,6 +8,7 @@ import pytest
 
 from hardware_test.pytest_plugin import (
     _log_test_class,
+    get_run_directory,
     pytest_configure,
     pytest_runtest_makereport,
     pytest_terminal_summary,
@@ -44,9 +45,10 @@ def test_paramiko_logger_is_muted_by_default(pytestconfig: pytest.Config) -> Non
 
 
 def test_pytest_configure_uses_one_run_directory(tmp_path: Path) -> None:
-    config = Mock(spec=pytest.Config)
+    config = Mock()
     config.rootpath = tmp_path
     config.option = Mock()
+    config.stash = pytest.Stash()
     config.getini.return_value = []
     config.getoption.return_value = []
 
@@ -62,6 +64,7 @@ def test_pytest_configure_uses_one_run_directory(tmp_path: Path) -> None:
     assert config.option.self_contained_html is True
     assert junit_path.parent.is_dir()
     assert latest_path.samefile(log_path)
+    assert get_run_directory(config) == log_path.parent
 
     log_path.write_text("Step 1: Configure analyzer\n")
 
@@ -89,6 +92,7 @@ def test_pytest_configure_mutes_configured_and_cli_loggers(tmp_path: Path) -> No
     config = Mock(spec=pytest.Config)
     config.rootpath = tmp_path
     config.option = Mock()
+    config.stash = pytest.Stash()
     config.getini.return_value = ["paramiko"]
     config.getoption.side_effect = getoption
     paramiko_logger = logging.getLogger("paramiko")

@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Annotated
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import AnyHttpUrl, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -30,6 +30,14 @@ class Settings(BaseSettings):
     auth_session_secret: SecretStr | None = None
     auth_session_ttl_seconds: int = Field(default=604800, gt=0)
     auth_cookie_secure: bool = False
+    allure_enabled: bool = False
+    allure_publisher_image: str = "local/allure-publisher:3.17.0"
+    allure_access_token: SecretStr | None = None
+    allure_public_url: AnyHttpUrl | None = None
+    allure_repository: str = Field(
+        default="pytest-hardware-template",
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+    )
 
     @field_validator("docker_devices", "allowed_image_prefixes", mode="before")
     @classmethod
@@ -37,6 +45,11 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return tuple(item.strip() for item in value.split(",") if item.strip())
         return value
+
+    @field_validator("allure_public_url", mode="before")
+    @classmethod
+    def empty_allure_public_url_is_unset(cls, value: object) -> object:
+        return None if value == "" else value
 
     @model_validator(mode="after")
     def validate_authentication_settings(self) -> Settings:
@@ -49,6 +62,12 @@ class Settings(BaseSettings):
             missing = [name for name, value in required.items() if not _has_secret_value(value)]
             if missing:
                 raise ValueError(f"authentication requires: {', '.join(missing)}")
+        return self
+
+    @model_validator(mode="after")
+    def validate_allure_settings(self) -> Settings:
+        if self.allure_enabled and not _has_secret_value(self.allure_access_token):
+            raise ValueError("Allure publishing requires: TEST_RUNNER_ALLURE_ACCESS_TOKEN")
         return self
 
 

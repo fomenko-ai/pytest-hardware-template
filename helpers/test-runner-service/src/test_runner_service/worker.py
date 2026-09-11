@@ -1,6 +1,8 @@
 import asyncio
+import re
 from collections.abc import Coroutine
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -15,6 +17,7 @@ from test_runner_service.models import (
     OperationState,
     OperationStatus,
     OperationType,
+    ReportStatus,
 )
 from test_runner_service.processes import ProcessResult, ProcessRunner
 from test_runner_service.settings import Settings
@@ -168,8 +171,21 @@ class OperationCoordinator:
                 return
             run_directory = find_result_directory(self._settings.artifacts_directory, previous)
             summary = None
+            report_updates: dict[str, object] = {}
             if run_directory is not None:
                 summary = read_junit_summary(run_directory / "reports" / "junit.xml")
+                if self._settings.allure_enabled:
+                    report_updates = await self._publish_allure(state, run_directory)
+                    if self._cancel_requested:
+                        self._finish(
+                            state,
+                            OperationStatus.CANCELLED,
+                            result.exit_code,
+                            artifact_directory=str(run_directory),
+                            summary=summary,
+                            **report_updates,
+                        )
+                        return
             status = OperationStatus.PASSED if result.exit_code == 0 else OperationStatus.FAILED
             self._finish(
                 state,
@@ -177,6 +193,7 @@ class OperationCoordinator:
                 result.exit_code,
                 artifact_directory=str(run_directory) if run_directory is not None else None,
                 summary=summary,
+                **report_updates,
             )
         except TimeoutError:
             await self._process_runner.cancel(state.container_name)
@@ -184,9 +201,61 @@ class OperationCoordinator:
         except Exception as error:
             self._finish(state, OperationStatus.INFRASTRUCTURE_ERROR, message=str(error))
 
-    async def _run_with_timeout(self, command: tuple[str, ...]) -> ProcessResult:
+    async def _publish_allure(
+        self,
+        state: OperationState,
+        run_directory: Path,
+    ) -> dict[str, object]:
+        results_directory = run_directory / "allure-results"
+        if not results_directory.is_dir():
+            return {
+                "report_status": ReportStatus.FAILED,
+                "report_message": "The test image did not create Allure results",
+            }
+
+        publisher_name = f"allure-publish-{state.operation_id}"
+        publishing = state.model_copy(update={"container_name": publisher_name})
+        self._state_store.write(publishing)
+        token = self._settings.allure_access_token
+        if token is None:
+            return {
+                "report_status": ReportStatus.FAILED,
+                "report_message": "Allure access token is unavailable",
+            }
+        command = self._command_builder.publish_allure(state.operation_id, run_directory)
+        try:
+            result = await self._run_with_timeout(
+                command,
+                {"ALLURE_ACCESS_TOKEN": token.get_secret_value()},
+            )
+        except TimeoutError:
+            await self._process_runner.cancel(publisher_name)
+            return {
+                "report_status": ReportStatus.FAILED,
+                "report_message": "Allure publication timed out",
+            }
+        except Exception:
+            return {
+                "report_status": ReportStatus.FAILED,
+                "report_message": "Allure publication failed; inspect the operation log",
+            }
+        if result.exit_code != 0:
+            return {
+                "report_status": ReportStatus.FAILED,
+                "report_message": "Allure publication failed; inspect the operation log",
+            }
+        return {
+            "report_status": ReportStatus.PUBLISHED,
+            "report_url": _published_report_url(result.output),
+        }
+
+    async def _run_with_timeout(
+        self,
+        command: tuple[str, ...],
+        environment: dict[str, str] | None = None,
+    ) -> ProcessResult:
         async with asyncio.timeout(self._settings.operation_timeout_seconds):
-            return await self._process_runner.run(command, self._state_store.log_file)
+            return await self._process_runner.run(command, self._state_store.log_file, environment)
 
     def _finish(
         self,
@@ -213,3 +282,8 @@ class OperationCoordinator:
     @staticmethod
     def _accepted(state: OperationState) -> AcceptedOperation:
         return AcceptedOperation(operation_id=state.operation_id, status=state.status)
+
+
+def _published_report_url(output: str) -> str | None:
+    urls = re.findall(r"https?://[^\s]+", output)
+    return urls[-1].rstrip(".,;)\"]'") if urls else None
