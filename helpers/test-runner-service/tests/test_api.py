@@ -64,7 +64,8 @@ def test_artifact_history_and_allure_tree_links(settings: Settings) -> None:
     assert runs.json()["items"][0]["run_id"] == "2026-run"
     assert report.status_code == 200
     assert config.json() == {
-        "allure_reports_url": ("https://allure.example/base/reports/tree?repo=hardware-project")
+        "allure_reports_url": ("https://allure.example/base/reports/tree?repo=hardware-project"),
+        "reportportal_launches_url": None,
     }
 
 

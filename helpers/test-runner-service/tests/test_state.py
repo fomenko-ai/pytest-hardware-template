@@ -53,7 +53,7 @@ def test_comma_separated_environment_settings(monkeypatch: pytest.MonkeyPatch) -
     )
     monkeypatch.setenv("TEST_RUNNER_DOCKER_DEVICES", "/dev/ttyUSB0,/dev/ttyUSB1")
 
-    settings = Settings()
+    settings = Settings(_env_file=None)
 
     assert settings.allowed_image_prefixes == (
         "sha256:",

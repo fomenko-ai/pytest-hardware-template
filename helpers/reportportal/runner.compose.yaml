@@ -1,0 +1,11 @@
+# Merge with helpers/test-runner-service/compose.yaml after starting ReportPortal.
+services:
+  test-runner:
+    networks:
+      - default
+      - reportportal
+
+networks:
+  reportportal:
+    external: true
+    name: hardware-reportportal

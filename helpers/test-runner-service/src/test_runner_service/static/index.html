@@ -37,6 +37,7 @@
     <nav class="actions" aria-label="Report history">
       <a href="/artifact-runs">All test artifacts</a>
       <a id="allure-reports" target="_blank" rel="noopener" hidden>All Allure reports</a>
+      <a id="reportportal-launches" target="_blank" rel="noopener" hidden>All ReportPortal launches</a>
     </nav>
   </div>
 
@@ -78,6 +79,8 @@
       <a id="junit" hidden>Download JUnit XML</a>
       <a id="html-report" target="_blank" rel="noopener" hidden>Open HTML report</a>
       <a id="allure-report" target="_blank" rel="noopener" hidden>Open Allure report</a>
+      <a id="reportportal-launch" target="_blank" rel="noopener" hidden>Open ReportPortal launch</a>
+      <p id="reportportal-status" hidden></p>
     </div>
     <h2>Live output</h2>
     <pre id="output"></pre>
@@ -107,6 +110,9 @@
       const link = document.querySelector("#allure-reports");
       link.hidden = !config.allure_reports_url;
       if (config.allure_reports_url) link.href = config.allure_reports_url;
+      const rpLink = document.querySelector("#reportportal-launches");
+      rpLink.hidden = !config.reportportal_launches_url;
+      if (config.reportportal_launches_url) rpLink.href = config.reportportal_launches_url;
     }
 
     async function request(path, body) {
@@ -145,6 +151,14 @@
       const allureLink = document.querySelector("#allure-report");
       allureLink.hidden = !(showTerminalResult && state && state.report_url);
       if (!allureLink.hidden) allureLink.href = state.report_url;
+      const rpLink = document.querySelector("#reportportal-launch");
+      rpLink.hidden = !(showTerminalResult && state && state.reportportal_url);
+      if (!rpLink.hidden) rpLink.href = state.reportportal_url;
+      const rpStatus = document.querySelector("#reportportal-status");
+      rpStatus.hidden = !(showTerminalResult && state &&
+        ["incomplete", "unavailable"].includes(state.reportportal_status));
+      rpStatus.textContent = rpStatus.hidden ? "" :
+        `ReportPortal: ${state.reportportal_status}. ${state.reportportal_message ?? ""}`;
       for (const element of document.querySelectorAll("form button")) {
         element.disabled = state && !terminal;
       }

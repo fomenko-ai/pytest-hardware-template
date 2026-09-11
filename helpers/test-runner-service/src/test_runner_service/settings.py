@@ -38,6 +38,11 @@ class Settings(BaseSettings):
         default="pytest-hardware-template",
         pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
     )
+    reportportal_enabled: bool = False
+    reportportal_endpoint: AnyHttpUrl | None = None
+    reportportal_public_url: AnyHttpUrl | None = None
+    reportportal_project: str = Field(default="", pattern=r"^[a-z0-9_-]*$")
+    reportportal_api_key: SecretStr | None = None
 
     @field_validator("docker_devices", "allowed_image_prefixes", mode="before")
     @classmethod
@@ -68,6 +73,38 @@ class Settings(BaseSettings):
     def validate_allure_settings(self) -> Settings:
         if self.allure_enabled and not _has_secret_value(self.allure_access_token):
             raise ValueError("Allure publishing requires: TEST_RUNNER_ALLURE_ACCESS_TOKEN")
+        return self
+
+    @field_validator("reportportal_endpoint", "reportportal_public_url", mode="before")
+    @classmethod
+    def empty_reportportal_url_is_unset(cls, value: object) -> object:
+        return None if value == "" else value
+
+    @field_validator("reportportal_endpoint", "reportportal_public_url")
+    @classmethod
+    def validate_reportportal_url(cls, value: AnyHttpUrl | None) -> AnyHttpUrl | None:
+        if value is not None and (
+            value.username or value.password or value.query or value.fragment
+        ):
+            raise ValueError("ReportPortal URLs must not contain credentials, query, or fragment")
+        return value
+
+    @model_validator(mode="after")
+    def validate_reportportal_settings(self) -> Settings:
+        if self.reportportal_enabled:
+            required = {
+                "TEST_RUNNER_REPORTPORTAL_ENDPOINT": self.reportportal_endpoint,
+                "TEST_RUNNER_REPORTPORTAL_PUBLIC_URL": self.reportportal_public_url,
+                "TEST_RUNNER_REPORTPORTAL_PROJECT": self.reportportal_project,
+                "TEST_RUNNER_REPORTPORTAL_API_KEY": self.reportportal_api_key,
+            }
+            missing = [
+                name
+                for name, value in required.items()
+                if not (value.get_secret_value() if isinstance(value, SecretStr) else value)
+            ]
+            if missing:
+                raise ValueError(f"ReportPortal requires: {', '.join(missing)}")
         return self
 
 

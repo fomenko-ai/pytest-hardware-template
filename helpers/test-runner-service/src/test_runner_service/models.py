@@ -44,6 +44,12 @@ class ReportStatus(StrEnum):
     FAILED = "failed"
 
 
+class ReportPortalStatus(StrEnum):
+    FINISHED = "finished"
+    INCOMPLETE = "incomplete"
+    UNAVAILABLE = "unavailable"
+
+
 class TestSummary(BaseModel):
     total: int = 0
     passed: int = 0
@@ -73,6 +79,9 @@ class OperationState(BaseModel):
     report_status: ReportStatus | None = None
     report_url: str | None = None
     report_message: str | None = None
+    reportportal_status: ReportPortalStatus | None = None
+    reportportal_url: str | None = None
+    reportportal_message: str | None = None
     message: str | None = None
 
     @classmethod
@@ -160,3 +169,4 @@ class ArtifactRunList(BaseModel):
 
 class UiConfig(BaseModel):
     allure_reports_url: str | None = None
+    reportportal_launches_url: str | None = None

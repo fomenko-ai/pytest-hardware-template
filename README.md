@@ -340,6 +340,15 @@ Allure Report Storage for local or server-hosted reports. See [the Allure guide]
 for the data flow, setup, publication, retained-report browsing, and optional Test Runner
 integration. Allure remains disabled by default.
 
+### Optional ReportPortal reporting
+
+Install the `reportportal` dependency group and use the official `--reportportal` pytest flag
+to send results during execution. The independently deployable `helpers/reportportal/` stack
+includes pinned Docker Compose services and instructions for local and server installation.
+See [the ReportPortal guide](helpers/reportportal/README.md) for API-key setup, Test Runner
+integration, networking, backups, and reporting limitations. ReportPortal and Allure can be
+enabled independently; both remain outside the published library dependencies.
+
 ## AI agent skills
 
 The repository includes focused skills under `skills/` for AI coding agents:
@@ -500,13 +509,40 @@ For a single trusted laboratory server that needs an optional HTTP API, live out
 HTML interface, see [`helpers/test-runner-service`](helpers/test-runner-service/README.md). The
 helper is an independently packaged Compose application and keeps its dependencies out of the main
 framework. Its UI links to the current run while the page remains open, provides a persistent index
-of every retained local artifact directory, and can link to the configured Allure repository tree.
+of every retained local artifact directory, and can link to the configured Allure repository tree
+and ReportPortal launches.
 
 ![Hardware Test Runner web interface](helpers/test-runner-service/docs/images/ui-overview.png)
 
+*Test Runner: image preparation, scenario selection, live output, and links to test reports.*
+
 ![Retained Test Runner artifact runs](helpers/test-runner-service/docs/images/artifact-runs.png)
 
+*Test Runner: retained artifact runs with links to logs and reports.*
+
 ![Allure reports grouped by branch](helpers/test-runner-service/docs/images/allure-reports.png)
+
+*Allure: retained reports grouped by branch, with publication dates.*
+
+![Example Allure test report](helpers/test-runner-service/docs/images/allure-report.png)
+
+*Allure: report overview with test results, quality gates, and test hierarchy.*
+
+![ReportPortal launch list](helpers/test-runner-service/docs/images/reportportal-launches.png)
+
+*ReportPortal: launch history with test totals, results, stand, and scenario attributes.*
+
+![ReportPortal launch results](helpers/test-runner-service/docs/images/reportportal-launch.png)
+
+*ReportPortal: individual test results and durations in a selected launch.*
+
+![ReportPortal test logs](helpers/test-runner-service/docs/images/reportportal-logs.png)
+
+*ReportPortal: numbered scenario steps, command execution, and results in the test log.*
+
+![ReportPortal dashboard](helpers/test-runner-service/docs/images/reportportal-dashboards.png)
+
+*ReportPortal: a configured dashboard showing hardware smoke test statistics and passing rate.*
 
 To exercise that service and the tracked hardware-test path without physical equipment, use the
 [Docker virtual hardware stand](helpers/virtual-stand/README.md). It provides an isolated SSH DUT,

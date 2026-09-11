@@ -40,8 +40,11 @@ def test_default_timeout_is_enabled(pytestconfig: pytest.Config) -> None:
     assert pytestconfig.getini("timeout") == "120"
 
 
-def test_paramiko_logger_is_muted_by_default(pytestconfig: pytest.Config) -> None:
-    assert pytestconfig.getini("muted_loggers") == ["paramiko"]
+def test_noisy_and_secret_logging_is_muted_by_default(pytestconfig: pytest.Config) -> None:
+    muted = pytestconfig.getini("muted_loggers")
+    assert "paramiko" in muted
+    assert "pytest_reportportal.service" in muted
+    assert not logging.getLogger("pytest_reportportal.service").isEnabledFor(logging.DEBUG)
 
 
 def test_pytest_configure_uses_one_run_directory(tmp_path: Path) -> None:

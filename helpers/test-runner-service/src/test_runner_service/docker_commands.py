@@ -33,6 +33,8 @@ class DockerCommandBuilder:
         ]
         if self.settings.allure_enabled:
             arguments.extend(("--build-arg", "INSTALL_ALLURE=true"))
+        if self.settings.reportportal_enabled:
+            arguments.extend(("--build-arg", "INSTALL_REPORTPORTAL=true"))
         arguments.append(str(self.settings.framework_source))
         return tuple(arguments)
 
@@ -82,6 +84,8 @@ class DockerCommandBuilder:
             arguments.extend(("--network", self.settings.docker_network))
         for device in self.settings.docker_devices:
             arguments.extend(("--device", device))
+        if self.settings.reportportal_enabled:
+            arguments.extend(("--env", "RP_API_KEY"))
         arguments.extend(
             (
                 image,
@@ -99,6 +103,35 @@ class DockerCommandBuilder:
         )
         if self.settings.allure_enabled:
             arguments.append("--allure")
+        if self.settings.reportportal_enabled:
+            arguments.extend(
+                (
+                    "--reportportal",
+                    "--rp-endpoint",
+                    str(self.settings.reportportal_endpoint),
+                    "--rp-project",
+                    self.settings.reportportal_project,
+                    "--rp-launch",
+                    operation_id,
+                    "--rp-launch-description",
+                    f"stand={stand}; scenario={scenario}; image={image}",
+                    "--mute-logger",
+                    "pytest_reportportal.service",
+                    "-o",
+                    "rp_log_level=INFO",
+                    "-o",
+                    "rp_client_type=SYNC",
+                    "-o",
+                    "rp_connect_timeout=5",
+                    "-o",
+                    "rp_read_timeout=10",
+                    "-o",
+                    "rp_api_retries=0",
+                    "-o",
+                    "rp_launch_attributes="
+                    f"stand:{stand} scenario:{scenario} operation:{operation_id}",
+                )
+            )
         return tuple(arguments)
 
     def publish_allure(self, operation_id: str, run_directory: Path) -> tuple[str, ...]:

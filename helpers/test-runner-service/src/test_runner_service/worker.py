@@ -20,6 +20,7 @@ from test_runner_service.models import (
     ReportStatus,
 )
 from test_runner_service.processes import ProcessResult, ProcessRunner
+from test_runner_service.reportportal import read_reportportal_result
 from test_runner_service.settings import Settings
 from test_runner_service.state import StateStore
 
@@ -165,17 +166,29 @@ class OperationCoordinator:
     ) -> None:
         previous = snapshot_run_directories(self._settings.artifacts_directory)
         try:
-            result = await self._run_with_timeout(command)
+            token = self._settings.reportportal_api_key
+            environment = (
+                {"RP_API_KEY": token.get_secret_value()}
+                if self._settings.reportportal_enabled and token is not None
+                else None
+            )
+            result = await self._run_with_timeout(command, environment)
+            report_updates = (
+                await asyncio.to_thread(
+                    read_reportportal_result, self._settings, state.operation_id
+                )
+                if self._settings.reportportal_enabled
+                else {}
+            )
             if self._cancel_requested:
-                self._finish(state, OperationStatus.CANCELLED, result.exit_code)
+                self._finish(state, OperationStatus.CANCELLED, result.exit_code, **report_updates)
                 return
             run_directory = find_result_directory(self._settings.artifacts_directory, previous)
             summary = None
-            report_updates: dict[str, object] = {}
             if run_directory is not None:
                 summary = read_junit_summary(run_directory / "reports" / "junit.xml")
                 if self._settings.allure_enabled:
-                    report_updates = await self._publish_allure(state, run_directory)
+                    report_updates.update(await self._publish_allure(state, run_directory))
                     if self._cancel_requested:
                         self._finish(
                             state,
@@ -197,7 +210,20 @@ class OperationCoordinator:
             )
         except TimeoutError:
             await self._process_runner.cancel(state.container_name)
-            self._finish(state, OperationStatus.TIMED_OUT, message="Hardware test run timed out")
+            report_updates = (
+                await asyncio.to_thread(
+                    read_reportportal_result, self._settings, state.operation_id
+                )
+                if self._settings.reportportal_enabled
+                else {}
+            )
+            self._finish(
+                state,
+                OperationStatus.TIMED_OUT,
+                None,
+                message="Hardware test run timed out",
+                **report_updates,
+            )
         except Exception as error:
             self._finish(state, OperationStatus.INFRASTRUCTURE_ERROR, message=str(error))
 

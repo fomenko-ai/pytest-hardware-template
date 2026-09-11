@@ -65,6 +65,12 @@ stand: real equipment should use a persistent trusted `known_hosts` file and `re
 
 ## Run the end-to-end scenario
 
+For an already running ReportPortal service, follow the
+[ReportPortal virtual-stand walkthrough](../reportportal/README.md#verify-reporting-on-the-virtual-stand).
+It covers this helper's separate `.env`, forwarding the reporting settings, connecting the
+ReportPortal gateway to the virtual network, and verifying the launch and local artifacts.
+The standalone runner's `.env` does not configure this helper automatically.
+
 ### Through the UI
 
 1. Open `http://127.0.0.1:8080/` and confirm that the runner status is `idle`.

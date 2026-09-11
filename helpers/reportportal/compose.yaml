@@ -1,0 +1,478 @@
+# Adapted from reportportal/reportportal at bd2993f61216883acccffb8a86d246ff9f8bb53b.
+# See README.md for source, deployment requirements, and changes from upstream.
+name: hardware-reportportal
+services:
+  gateway:
+    image: traefik:v2.11.54
+    logging:
+      driver: json-file
+      options: &log-options
+        max-size: 100m
+        max-file: '5'
+    ports:
+      - ${REPORTPORTAL_BIND_ADDRESS:-127.0.0.1}:${REPORTPORTAL_PORT:-8082}:8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command:
+      - --providers.docker=true
+      - --providers.docker.constraints=Label(`traefik.expose`, `true`)
+      - --entrypoints.web.address=:8080
+      - --entrypoints.traefik.address=:8081
+      - --api.dashboard=true
+      - --api.insecure=true
+      - --providers.docker.network=hardware-reportportal
+      - --ping=true
+      - --ping.entrypoint=traefik
+    healthcheck:
+      test:
+        - CMD
+        - traefik
+        - healthcheck
+        - --ping
+        - --ping.entrypoint=traefik
+        - --entrypoints.traefik.address=:8081
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - reportportal
+    restart: unless-stopped
+  postgres:
+    image: postgres:18.4
+    logging:
+      driver: json-file
+      options: *log-options
+    shm_size: 512m
+    environment:
+      POSTGRES_USER: rpuser
+      POSTGRES_PASSWORD: ${REPORTPORTAL_DB_PASSWORD:?set REPORTPORTAL_DB_PASSWORD in .env}
+      POSTGRES_DB: reportportal
+    volumes:
+      - postgres:/var/lib/postgresql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -d $$POSTGRES_DB -U $$POSTGRES_USER
+      interval: 10s
+      timeout: 120s
+      retries: 10
+    networks:
+      - reportportal
+    restart: unless-stopped
+  rabbitmq:
+    image: rabbitmq:4.3.4-management
+    logging:
+      driver: json-file
+      options: *log-options
+    environment:
+      RABBITMQ_DEFAULT_USER: rpuser
+      RABBITMQ_DEFAULT_PASS: ${REPORTPORTAL_AMQP_PASSWORD:?set REPORTPORTAL_AMQP_PASSWORD in .env}
+    configs:
+      - source: rabbitmq_extra_config
+        target: /etc/rabbitmq/conf.d/99-extra.conf
+      - source: rabbitmq_enabled_plugins
+        target: /etc/rabbitmq/enabled_plugins
+    healthcheck:
+      test:
+        - CMD
+        - rabbitmq-diagnostics
+        - -q
+        - ping
+      interval: 30s
+      timeout: 30s
+      retries: 5
+      start_period: 60s
+    networks:
+      - reportportal
+    restart: unless-stopped
+    hostname: rabbitmq
+    volumes:
+      - rabbitmq:/var/lib/rabbitmq
+  opensearch:
+    image: opensearchproject/opensearch:3.8.0
+    logging:
+      driver: json-file
+      options: *log-options
+    environment:
+      discovery.type: single-node
+      plugins.security.disabled: 'true'
+      bootstrap.memory_lock: 'true'
+      OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+      DISABLE_INSTALL_DEMO_CONFIG: 'true'
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - opensearch:/usr/share/opensearch/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -s -f http://localhost:9200/_cluster/health | grep -q '"status":"green"\|"status":"yellow"'
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    networks:
+      - reportportal
+    restart: unless-stopped
+  migrations:
+    image: reportportal/migrations:5.15.4
+    logging:
+      driver: json-file
+      options: *log-options
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_SERVER: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: reportportal
+      POSTGRES_USER: rpuser
+      POSTGRES_PASSWORD: ${REPORTPORTAL_DB_PASSWORD:?set REPORTPORTAL_DB_PASSWORD in .env}
+    networks:
+      - reportportal
+    restart: on-failure
+  index:
+    image: reportportal/service-index:5.15.1
+    logging:
+      driver: json-file
+      options: *log-options
+    depends_on:
+      gateway:
+        condition: service_started
+    environment:
+      LB_URL: http://gateway:8081
+      TRAEFIK_V2_MODE: 'true'
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -f http://localhost:8080/health || wget -q --spider http://localhost:8080/health || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - traefik.http.routers.index.rule=PathPrefix(`/`)
+      - traefik.http.routers.index.service=index
+      - traefik.http.routers.index.entrypoints=web
+      - traefik.http.services.index.loadbalancer.server.port=8080
+      - traefik.http.services.index.loadbalancer.server.scheme=http
+      - traefik.expose=true
+      - traefik.docker.network=hardware-reportportal
+    networks:
+      - reportportal
+    restart: unless-stopped
+  ui:
+    image: reportportal/service-ui:5.15.5
+    environment:
+      RP_SERVER_PORT: '8080'
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -f http://localhost:8080/health || wget -q --spider http://localhost:8080/health || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - traefik.http.middlewares.ui-strip-prefix.stripprefix.prefixes=/ui
+      - traefik.http.routers.ui.middlewares=ui-strip-prefix@docker
+      - traefik.http.routers.ui.rule=PathPrefix(`/ui`)
+      - traefik.http.routers.ui.service=ui
+      - traefik.http.routers.ui.entrypoints=web
+      - traefik.http.services.ui.loadbalancer.server.port=8080
+      - traefik.http.services.ui.loadbalancer.server.scheme=http
+      - traefik.expose=true
+      - traefik.docker.network=hardware-reportportal
+    networks:
+      - reportportal
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: *log-options
+  api:
+    image: reportportal/service-api:5.15.4
+    logging:
+      driver: json-file
+      options: *log-options
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      jobs:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+    environment:
+      RP_DB_HOST: postgres
+      RP_DB_PORT: 5432
+      RP_DB_USER: rpuser
+      RP_DB_PASS: ${REPORTPORTAL_DB_PASSWORD:?set REPORTPORTAL_DB_PASSWORD in .env}
+      RP_DB_NAME: reportportal
+      RP_AMQP_HOST: rabbitmq
+      RP_AMQP_PORT: 5672
+      RP_AMQP_APIPORT: 15672
+      RP_AMQP_USER: rpuser
+      RP_AMQP_PASS: ${REPORTPORTAL_AMQP_PASSWORD:?set REPORTPORTAL_AMQP_PASSWORD in .env}
+      RP_AMQP_APIUSER: rpuser
+      RP_AMQP_APIPASS: ${REPORTPORTAL_AMQP_PASSWORD:?set REPORTPORTAL_AMQP_PASSWORD in .env}
+      RP_AMQP_ANALYZER-VHOST: analyzer
+      DATASTORE_TYPE: filesystem
+      LOGGING_LEVEL_ORG_HIBERNATE_SQL: info
+      RP_REQUESTLOGGING: 'false'
+      AUDIT_LOGGER: 'OFF'
+      MANAGEMENT_HEALTH_ELASTICSEARCH_ENABLED: 'false'
+      RP_ENVIRONMENT_VARIABLE_ALLOW_DELETE_ACCOUNT: 'false'
+      JAVA_OPTS: -Xmx1g -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp
+      RP_JOBS_BASEURL: http://jobs:8686
+      COM_TA_REPORTPORTAL_JOB_INTERRUPT_BROKEN_LAUNCHES_CRON: PT1H
+      RP_ENVIRONMENT_VARIABLE_PATTERN-ANALYSIS_BATCH-SIZE: 100
+      RP_ENVIRONMENT_VARIABLE_PATTERN-ANALYSIS_PREFETCH-COUNT: 1
+      RP_ENVIRONMENT_VARIABLE_PATTERN-ANALYSIS_CONSUMERS-COUNT: 1
+      COM_TA_REPORTPORTAL_JOB_LOAD_PLUGINS_CRON: PT10S
+      COM_TA_REPORTPORTAL_JOB_CLEAN_OUTDATED_PLUGINS_CRON: PT10S
+      REPORTING_QUEUES_COUNT: 10
+      REPORTING_CONSUMER_PREFETCHCOUNT: 10
+      REPORTING_PARKINGLOT_TTL_DAYS: 7
+    volumes:
+      - storage:/data/storage
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -f http://localhost:8585/health || wget -q --spider http://localhost:8585/health || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      - traefik.http.middlewares.api-strip-prefix.stripprefix.prefixes=/api
+      - traefik.http.routers.api.middlewares=api-strip-prefix@docker
+      - traefik.http.routers.api.rule=PathPrefix(`/api`)
+      - traefik.http.routers.api.service=api
+      - traefik.http.routers.api.entrypoints=web
+      - traefik.http.services.api.loadbalancer.server.port=8585
+      - traefik.http.services.api.loadbalancer.server.scheme=http
+      - traefik.expose=true
+      - traefik.docker.network=hardware-reportportal
+    networks:
+      - reportportal
+    restart: unless-stopped
+  uat:
+    image: reportportal/service-authorization:5.15.1
+    logging:
+      driver: json-file
+      options: *log-options
+    environment:
+      RP_DB_HOST: postgres
+      RP_DB_PORT: 5432
+      RP_DB_USER: rpuser
+      RP_DB_PASS: ${REPORTPORTAL_DB_PASSWORD:?set REPORTPORTAL_DB_PASSWORD in .env}
+      RP_DB_NAME: reportportal
+      RP_AMQP_HOST: rabbitmq
+      RP_AMQP_PORT: 5672
+      RP_AMQP_APIPORT: 15672
+      RP_AMQP_USER: rpuser
+      RP_AMQP_PASS: ${REPORTPORTAL_AMQP_PASSWORD:?set REPORTPORTAL_AMQP_PASSWORD in .env}
+      RP_AMQP_APIUSER: rpuser
+      RP_AMQP_APIPASS: ${REPORTPORTAL_AMQP_PASSWORD:?set REPORTPORTAL_AMQP_PASSWORD in .env}
+      RP_AMQP_ANALYZER-VHOST: analyzer
+      DATASTORE_TYPE: filesystem
+      RP_SESSION_LIVE: 86400
+      RP_SAML_SESSION-LIVE: 4320
+      RP_INITIAL_ADMIN_PASSWORD: ${REPORTPORTAL_ADMIN_PASSWORD:?set REPORTPORTAL_ADMIN_PASSWORD in .env}
+      JAVA_OPTS: -Djava.security.egd=file:/dev/./urandom -XX:MinRAMPercentage=60.0 -XX:MaxRAMPercentage=90.0 --add-opens=java.base/java.lang=ALL-UNNAMED
+    volumes:
+      - storage:/data/storage
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -f http://localhost:9999/health || wget -q --spider http://localhost:9999/health || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      - traefik.http.middlewares.uat-strip-prefix.stripprefix.prefixes=/uat
+      - traefik.http.routers.uat.middlewares=uat-strip-prefix@docker
+      - traefik.http.routers.uat.rule=PathPrefix(`/uat`)
+      - traefik.http.routers.uat.service=uat
+      - traefik.http.routers.uat.entrypoints=web
+      - traefik.http.services.uat.loadbalancer.server.port=9999
+      - traefik.http.services.uat.loadbalancer.server.scheme=http
+      - traefik.expose=true
+      - traefik.docker.network=hardware-reportportal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+    networks:
+      - reportportal
+    restart: unless-stopped
+  jobs:
+    image: reportportal/service-jobs:5.15.2
+    logging:
+      driver: json-file
+      options: *log-options
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+    environment:
+      RP_DB_HOST: postgres
+      RP_DB_PORT: 5432
+      RP_DB_USER: rpuser
+      RP_DB_PASS: ${REPORTPORTAL_DB_PASSWORD:?set REPORTPORTAL_DB_PASSWORD in .env}
+      RP_DB_NAME: reportportal
+      RP_AMQP_HOST: rabbitmq
+      RP_AMQP_PORT: 5672
+      RP_AMQP_APIPORT: 15672
+      RP_AMQP_USER: rpuser
+      RP_AMQP_PASS: ${REPORTPORTAL_AMQP_PASSWORD:?set REPORTPORTAL_AMQP_PASSWORD in .env}
+      RP_AMQP_APIUSER: rpuser
+      RP_AMQP_APIPASS: ${REPORTPORTAL_AMQP_PASSWORD:?set REPORTPORTAL_AMQP_PASSWORD in .env}
+      RP_AMQP_ANALYZER-VHOST: analyzer
+      DATASTORE_TYPE: filesystem
+      RP_ENVIRONMENT_VARIABLE_CLEAN_ATTACHMENT_CRON: 0 0 */24 * * *
+      RP_ENVIRONMENT_VARIABLE_CLEAN_LOG_CRON: 0 0 */24 * * *
+      RP_ENVIRONMENT_VARIABLE_CLEAN_LAUNCH_CRON: 0 0 */24 * * *
+      RP_ENVIRONMENT_VARIABLE_BATCH-SIZE: 10000
+      RP_ENVIRONMENT_VARIABLE_CLEAN_STORAGE_CRON: 0 0 */24 * * *
+      RP_ENVIRONMENT_VARIABLE_STORAGE_PROJECT_CRON: 0 */5 * * * *
+      RP_ENVIRONMENT_VARIABLE_CLEAN_EXPIREDUSER_CRON: 0 0 */24 * * *
+      RP_ENVIRONMENT_VARIABLE_CLEAN_EXPIREDUSER_RETENTIONPERIOD: 365
+      RP_ENVIRONMENT_VARIABLE_NOTIFICATION_EXPIREDUSER_CRON: 0 0 */24 * * *
+      RP_ENVIRONMENT_VARIABLE_CLEAN_EVENTS_RETENTIONPERIOD: 365
+      RP_ENVIRONMENT_VARIABLE_CLEAN_EVENTS_CRON: 0 30 05 * * *
+      RP_ENVIRONMENT_VARIABLE_CLEAN_STORAGE_CHUNKSIZE: 20000
+      RP_PROCESSING_LOG_MAXBATCHSIZE: 2000
+      RP_PROCESSING_LOG_MAXBATCHTIMEOUT: 6000
+      RP_AMQP_MAXLOGCONSUMER: 1
+      JAVA_OPTS: -Djava.security.egd=file:/dev/./urandom -XX:+UseG1GC -XX:+UseStringDeduplication -XX:G1ReservePercent=20
+        -XX:InitiatingHeapOccupancyPercent=60 -XX:MaxRAMPercentage=70.0 -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp
+    volumes:
+      - storage:/data/storage
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -f http://localhost:8686/health || wget -q --spider http://localhost:8686/health || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      - traefik.http.middlewares.jobs-strip-prefix.stripprefix.prefixes=/jobs
+      - traefik.http.routers.jobs.middlewares=jobs-strip-prefix@docker
+      - traefik.http.routers.jobs.rule=PathPrefix(`/jobs`)
+      - traefik.http.routers.jobs.service=jobs
+      - traefik.http.routers.jobs.entrypoints=web
+      - traefik.http.services.jobs.loadbalancer.server.port=8686
+      - traefik.http.services.jobs.loadbalancer.server.scheme=http
+      - traefik.expose=true
+      - traefik.docker.network=hardware-reportportal
+    networks:
+      - reportportal
+    restart: unless-stopped
+  analyzer-storage-init:
+    image: busybox:1.38.0
+    logging:
+      driver: json-file
+      options: *log-options
+    user: 0:0
+    command:
+      - sh
+      - -ec
+      - |
+        current="$$(stat -c '%u:%g' /data)"
+        expected="65532:65532"
+
+        if [ "$$current" = "$$expected" ]; then
+          echo "analyzer-storage-init: already ready ($$current)"
+          exit 0
+        fi
+
+        echo "analyzer-storage-init: fixing owner $$current -> $$expected"
+        chown "$$expected" /data
+        echo "analyzer-storage-init: ready ($$(stat -c '%u:%g mode=%a' /data))"
+    volumes:
+      - type: volume
+        source: analyzer-storage
+        target: /data
+        volume: &empty-volume
+          nocopy: true
+    network_mode: none
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+    restart: 'no'
+  analyzer:
+    image: reportportal/service-auto-analyzer:5.15.5
+    logging:
+      driver: json-file
+      options: *log-options
+    environment:
+      LOGGING_LEVEL: info
+      AMQP_EXCHANGE_NAME: analyzer-default
+      AMQP_VIRTUAL_HOST: analyzer
+      AMQP_URL: amqp://rpuser:${REPORTPORTAL_AMQP_PASSWORD:?set REPORTPORTAL_AMQP_PASSWORD in .env}@rabbitmq:5672
+      ES_HOSTS: http://opensearch:9200
+      ANALYZER_BINARYSTORE_TYPE: filesystem
+      DATASTORE_TYPE: filesystem
+      FILESYSTEM_DEFAULT_PATH: /data/storage/analyzer
+    volumes:
+      - type: volume
+        source: analyzer-storage
+        target: /data/storage/analyzer
+        volume: *empty-volume
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:5001/', timeout=5)
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      analyzer-storage-init:
+        condition: service_completed_successfully
+      opensearch:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - reportportal
+    restart: unless-stopped
+configs:
+  rabbitmq_extra_config:
+    content: |
+      deprecated_features.permit.queue_master_locator = true
+      disk_free_limit.absolute = 50MB
+  rabbitmq_enabled_plugins:
+    content: |
+      [rabbitmq_management,rabbitmq_consistent_hash_exchange,rabbitmq_auth_backend_ldap,rabbitmq_shovel,rabbitmq_shovel_management].
+volumes:
+  opensearch: null
+  storage: null
+  analyzer-storage: null
+  postgres: null
+  rabbitmq: null
+networks:
+  reportportal:
+    name: hardware-reportportal
+    driver: bridge

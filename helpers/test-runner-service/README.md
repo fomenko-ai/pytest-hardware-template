@@ -13,7 +13,8 @@ argument arrays directly and does not import the framework package.
 The web interface provides controls for building or pulling an image, running a hardware scenario,
 following live output, opening the current result, and browsing retained reports. **All test
 artifacts** opens the local artifact-run index; **All Allure reports** opens the configured Allure
-Storage repository tree.
+Storage repository tree; **All ReportPortal launches** opens the configured ReportPortal project's
+launch list.
 
 ![Hardware Test Runner web interface](docs/images/ui-overview.png)
 
@@ -36,6 +37,25 @@ The selected entry opens the complete interactive Allure report with test result
 attachments, errors, and navigation through the test hierarchy:
 
 ![Example Allure test report](docs/images/allure-report.png)
+
+The ReportPortal launch list shows previous runs with test totals, results, and the stand and
+scenario attributes. Select a launch to inspect its tests:
+
+![ReportPortal launches from the virtual stand](docs/images/reportportal-launches.png)
+
+The selected launch lists individual tests with their status and duration. **Open ReportPortal
+launch** in the runner opens this view for the current result:
+
+![ReportPortal launch with a passed virtual DUT test](docs/images/reportportal-launch.png)
+
+Open a test to inspect its logs, including numbered scenario steps, command execution, and results:
+
+![ReportPortal test logs with scenario steps and command results](docs/images/reportportal-logs.png)
+
+Dashboards configured in ReportPortal summarize results across launches. This example shows overall
+statistics and the passing rate for the hardware smoke tests:
+
+![ReportPortal dashboard with hardware smoke test statistics](docs/images/reportportal-dashboards.png)
 
 ## Runtime contract
 
@@ -118,6 +138,23 @@ at `/reports/tree?repo=pytest-hardware-template`.
 **All Allure reports**; this is separate from **Open Allure report** for the latest publication.
 
 ## Start with Docker Compose
+
+### Optional ReportPortal integration
+
+The runner supports `pytest-reportportal` independently of Allure. Follow the
+[ReportPortal helper guide](../reportportal/README.md) to deploy locally or on a server and
+configure `TEST_RUNNER_REPORTPORTAL_ENABLED`, `TEST_RUNNER_REPORTPORTAL_ENDPOINT`,
+`TEST_RUNNER_REPORTPORTAL_PUBLIC_URL`, `TEST_RUNNER_REPORTPORTAL_PROJECT`, and
+`TEST_RUNNER_REPORTPORTAL_API_KEY` in the runner's untracked `.env`.
+
+The endpoint must be reachable from both the runner and test containers. The helper provides
+a Compose network overlay for a deployment on the same host. Build a new framework image after
+enabling reporting; remote images must contain the `reportportal` group. Results are sent during
+pytest execution. Launch names match operation IDs, and the UI links to the project launches
+and the latest run. The API exposes independent `reportportal_status`, `reportportal_url`, and
+`reportportal_message` fields. Status lookup failures do not change the pytest exit code.
+
+### Start the runner
 
 From this directory, create the local configuration from the tracked example:
 

@@ -24,6 +24,7 @@ from test_runner_service.models import (
     RunTestsRequest,
     UiConfig,
 )
+from test_runner_service.reportportal import launches_url
 from test_runner_service.settings import Settings
 from test_runner_service.state import StateStore
 from test_runner_service.worker import (
@@ -50,11 +51,12 @@ def create_router(
 
     @router.get("/v1/config", response_model=UiConfig)
     async def ui_config() -> UiConfig:
-        if not settings.allure_enabled or settings.allure_public_url is None:
-            return UiConfig()
-        query = urlencode({"repo": settings.allure_repository})
-        base_url = str(settings.allure_public_url).rstrip("/")
-        return UiConfig(allure_reports_url=f"{base_url}/reports/tree?{query}")
+        config = UiConfig(reportportal_launches_url=launches_url(settings))
+        if settings.allure_enabled and settings.allure_public_url is not None:
+            query = urlencode({"repo": settings.allure_repository})
+            base_url = str(settings.allure_public_url).rstrip("/")
+            config.allure_reports_url = f"{base_url}/reports/tree?{query}"
+        return config
 
     @router.post(
         "/v1/images/build",
