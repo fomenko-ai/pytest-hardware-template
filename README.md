@@ -509,43 +509,80 @@ For a single trusted laboratory server that needs an optional HTTP API, live out
 HTML interface, see [`helpers/test-runner-service`](helpers/test-runner-service/README.md). The
 helper is an independently packaged Compose application and keeps its dependencies out of the main
 framework. Its UI links to the current run while the page remains open, provides a persistent index
-of every retained local artifact directory, and can link to the configured Allure repository tree
-and ReportPortal launches.
+of every retained local artifact directory, and can link to the configured
+[Allure repository tree](docs/allure.md#publish-from-the-test-runner)
+and [ReportPortal launches](helpers/reportportal/README.md#connect-the-test-runner-on-the-same-docker-host).
 
-![Hardware Test Runner web interface](helpers/test-runner-service/docs/images/ui-overview.png)
+<p align="center">
+  <img src="helpers/test-runner-service/docs/images/ui-overview.png" alt="Hardware Test Runner web interface"><br>
+  <sub>Test Runner: image preparation, scenario selection, live output, and links to test reports.</sub>
+</p>
 
-*Test Runner: image preparation, scenario selection, live output, and links to test reports.*
-
-![Retained Test Runner artifact runs](helpers/test-runner-service/docs/images/artifact-runs.png)
-
-*Test Runner: retained artifact runs with links to logs and reports.*
-
-![Allure reports grouped by branch](helpers/test-runner-service/docs/images/allure-reports.png)
-
-*Allure: retained reports grouped by branch, with publication dates.*
-
-![Example Allure test report](helpers/test-runner-service/docs/images/allure-report.png)
-
-*Allure: report overview with test results, quality gates, and test hierarchy.*
-
-![ReportPortal launch list](helpers/test-runner-service/docs/images/reportportal-launches.png)
-
-*ReportPortal: launch history with test totals, results, stand, and scenario attributes.*
-
-![ReportPortal launch results](helpers/test-runner-service/docs/images/reportportal-launch.png)
-
-*ReportPortal: individual test results and durations in a selected launch.*
-
-![ReportPortal test logs](helpers/test-runner-service/docs/images/reportportal-logs.png)
-
-*ReportPortal: numbered scenario steps, command execution, and results in the test log.*
-
-![ReportPortal dashboard](helpers/test-runner-service/docs/images/reportportal-dashboards.png)
-
-*ReportPortal: a configured dashboard showing hardware smoke test statistics and passing rate.*
+<br>
 
 To exercise that service and the tracked hardware-test path without physical equipment, use the
 [Docker virtual hardware stand](helpers/virtual-stand/README.md). It provides an isolated SSH DUT,
 dedicated inventory, and the `virtual-smoke` scenario for local end-to-end verification.
 
 ![Successful virtual stand test run](helpers/test-runner-service/docs/images/virtual-stand-run.png)
+
+### Reporting examples
+
+#### Test Runner
+
+<p align="center">
+  <img src="helpers/test-runner-service/docs/images/artifact-runs.png" alt="Retained Test Runner artifact runs"><br>
+  <sub>Test Runner: retained artifact runs with links to logs and reports.</sub>
+</p>
+
+<br>
+
+#### Allure
+
+<p align="center">
+  <img src="helpers/test-runner-service/docs/images/allure-reports.png" alt="Allure reports grouped by branch"><br>
+  <sub>Allure: retained reports grouped by branch, with publication dates.</sub>
+</p>
+
+<br>
+
+<p align="center">
+  <img src="helpers/test-runner-service/docs/images/allure-report.png" alt="Example Allure test report"><br>
+  <sub>Allure: report overview with test results, quality gates, and test hierarchy.</sub>
+</p>
+
+<br>
+
+#### ReportPortal
+
+<p align="center">
+  <img src="helpers/test-runner-service/docs/images/reportportal-launches.png" alt="ReportPortal launch list"><br>
+  <sub>ReportPortal: launch history with test totals, results, stand, and scenario attributes.</sub>
+</p>
+
+<br>
+
+<p align="center">
+  <img src="helpers/test-runner-service/docs/images/reportportal-launch.png" alt="ReportPortal launch results"><br>
+  <sub>ReportPortal: individual test results and durations in a selected launch.</sub>
+</p>
+
+<br>
+
+<p align="center">
+  <img src="helpers/test-runner-service/docs/images/reportportal-logs.png" alt="ReportPortal test logs"><br>
+  <sub>ReportPortal: numbered scenario steps, command execution, and results in the test log.</sub>
+</p>
+
+<br>
+
+<p align="center">
+  <img src="helpers/test-runner-service/docs/images/reportportal-dashboards.png" alt="ReportPortal dashboard"><br>
+  <sub>ReportPortal: a configured dashboard showing hardware smoke test statistics and passing rate.</sub>
+</p>
+
+<br>
+
+## References
+
+- [How to use cloud AI models within a corporate perimeter without getting in trouble with InfoSec? (RU)](https://habr.com/ru/articles/1078824/)
