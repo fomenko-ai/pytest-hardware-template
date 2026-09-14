@@ -989,7 +989,6 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pyserial" },
     { name = "pytest" },
-    { name = "pytest-html" },
     { name = "pytest-timeout" },
     { name = "pyyaml" },
     { name = "yaml-test-params", extra = ["pytest"] },
@@ -1005,6 +1004,9 @@ dev = [
     { name = "ruff" },
     { name = "ty" },
 ]
+reporting = [
+    { name = "pytest-html" },
+]
 reportportal = [
     { name = "pytest-reportportal" },
 ]
@@ -1016,7 +1018,6 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.11.0" },
     { name = "pyserial", specifier = ">=3.5" },
     { name = "pytest", specifier = ">=9.0.0" },
-    { name = "pytest-html", specifier = ">=4.1.1" },
     { name = "pytest-timeout", specifier = ">=2.4.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "yaml-test-params", extras = ["pytest"], specifier = ">=0.4.2" },
@@ -1030,6 +1031,7 @@ dev = [
     { name = "ruff", specifier = ">=0.14.0" },
     { name = "ty", specifier = ">=0.0.1a21" },
 ]
+reporting = [{ name = "pytest-html", specifier = ">=4.1.1" }]
 reportportal = [{ name = "pytest-reportportal", specifier = "==5.6.11" }]
 
 [[package]]

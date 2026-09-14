@@ -5,6 +5,42 @@ This independently deployed helper runs ReportPortal for the template and Test R
 HTML publisher and no conversion of Allure results. Both integrations can be enabled together.
 ReportPortal is not a dependency of the published `hardware_test` package.
 
+## Report flow
+
+```text
+pytest --reportportal
+        │
+        ▼
+pytest-reportportal agent
+        │  streams launch metadata, test statuses, logs, and attachments
+        ▼
+ReportPortal gateway and API
+        │
+        ├──► launch history and attributes
+        ├──► test hierarchy, results, and duration
+        ├──► logs and attachments
+        └──► dashboards and analysis
+                  │
+                  ▼
+          ReportPortal web UI
+```
+
+The Test Runner coordinates the launch while preserving its local process result and artifacts:
+
+```text
+Run tests ──► preserve pytest status, exit code, and local artifacts
+    │
+    ├──► pytest-reportportal streams results during execution
+    │
+    └──► look up completed launch ──► save reportportal_status and reportportal_url
+                                             │
+                                             ├──► Open ReportPortal launch
+                                             └──► All ReportPortal launches
+```
+
+ReportPortal transmission or lookup failures are recorded separately and never change the pytest
+exit code.
+
 ## UI preview
 
 The launch list shows previous runs with test totals, results, and stand and scenario attributes.
@@ -197,6 +233,17 @@ attributes; the description also records the immutable image reference. The UI e
 **All ReportPortal launches**, where results can be followed while pytest is running, and
 **Open ReportPortal launch** after the operation completes. API key values are passed through
 the subprocess environment (`docker --env RP_API_KEY`), not Docker argument values, state or UI.
+
+Repository pytest configuration also adds shared run metadata to **launch attributes**:
+`run_id`, `python_version`, `pytest_version`, and available `git_revision`, `stand`, `scenario`,
+and `marker_sequence`. View them under the launch name in **Launches**, rather than in an
+individual test's **All Logs** tab. `operation` remains the runner job ID; `run_id` identifies
+the pytest artifacts directory. Existing custom attributes are preserved; shared keys are
+replaced with actual run values to avoid conflicting duplicates. The integration updates the
+resolved settings of the pinned pytest-reportportal agent before it starts a new launch,
+including settings supplied through environment variables. Attaching to an existing launch
+with `--rp-launch-uuid` does not update that launch's attributes. Rebuild the test image for
+new container runs; existing launches are not retroactively changed.
 
 The runner uses the API to look up the operation's launch after pytest exits, including failed
 tests. `reportportal_status`, `reportportal_url`, and `reportportal_message` are independent of

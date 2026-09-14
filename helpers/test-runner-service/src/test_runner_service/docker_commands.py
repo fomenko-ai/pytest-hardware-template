@@ -48,6 +48,7 @@ class DockerCommandBuilder:
     def run_tests(
         self,
         operation_id: str,
+        run_id: str,
         image: str,
         stand: str,
         scenario: str,
@@ -93,6 +94,10 @@ class DockerCommandBuilder:
                 "run",
                 "pytest",
                 "tests/hardware",
+                "--run-id",
+                run_id,
+                "--artifacts-root",
+                "/app/artifacts",
                 "--scenario",
                 scenario,
                 "--inventory",
@@ -102,7 +107,15 @@ class DockerCommandBuilder:
             )
         )
         if self.settings.allure_enabled:
-            arguments.append("--allure")
+            results_path = self.settings.allure_results_path
+            if results_path is None:
+                raise RuntimeError("Allure results path is unavailable")
+            arguments.extend(
+                (
+                    "--alluredir",
+                    str(Path("/app/artifacts") / run_id / results_path),
+                )
+            )
         if self.settings.reportportal_enabled:
             arguments.extend(
                 (
@@ -135,6 +148,9 @@ class DockerCommandBuilder:
         return tuple(arguments)
 
     def publish_allure(self, operation_id: str, run_directory: Path) -> tuple[str, ...]:
+        results_path = self.settings.allure_results_path
+        if results_path is None:
+            raise RuntimeError("Allure results path is unavailable")
         container_name = f"allure-publish-{operation_id}"
         repository_directory = f"/workspace/{self.settings.allure_repository}"
         return (
@@ -154,7 +170,7 @@ class DockerCommandBuilder:
             "--volume",
             f"{self.settings.framework_source}:{repository_directory}:ro",
             "--volume",
-            f"{run_directory / 'allure-results'}:/results:ro",
+            f"{run_directory / results_path}:/results:ro",
             "--workdir",
             repository_directory,
             self.settings.allure_publisher_image,

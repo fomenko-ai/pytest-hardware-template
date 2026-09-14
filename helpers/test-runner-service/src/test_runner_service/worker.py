@@ -6,11 +6,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from test_runner_service.artifacts import (
-    find_result_directory,
-    read_junit_summary,
-    snapshot_run_directories,
-)
+from test_runner_service.artifacts import read_junit_summary, resolve_report_path
 from test_runner_service.docker_commands import DockerCommandBuilder
 from test_runner_service.models import (
     AcceptedOperation,
@@ -18,6 +14,7 @@ from test_runner_service.models import (
     OperationStatus,
     OperationType,
     ReportStatus,
+    TestSummary,
 )
 from test_runner_service.processes import ProcessResult, ProcessRunner
 from test_runner_service.reportportal import read_reportportal_result
@@ -78,17 +75,19 @@ class OperationCoordinator:
 
     async def start_run(self, image: str, stand: str, scenario: str) -> AcceptedOperation:
         operation_id = self._new_id("run")
+        run_id = operation_id
         container_name = f"hardware-test-run-{operation_id}"
         state = OperationState.started(
             operation_id,
             OperationType.RUN_TESTS,
             OperationStatus.RUNNING,
+            run_id=run_id,
             image_reference=image,
             stand=stand,
             scenario=scenario,
             container_name=container_name,
         )
-        command = self._command_builder.run_tests(operation_id, image, stand, scenario)
+        command = self._command_builder.run_tests(operation_id, run_id, image, stand, scenario)
         await self._start(state, self._execute_test_run(state, command))
         return self._accepted(state)
 
@@ -164,7 +163,9 @@ class OperationCoordinator:
         state: OperationState,
         command: tuple[str, ...],
     ) -> None:
-        previous = snapshot_run_directories(self._settings.artifacts_directory)
+        if state.run_id is None:
+            raise RuntimeError("test operation has no pytest run identity")
+        expected_directory = self._settings.artifacts_directory / state.run_id
         try:
             token = self._settings.reportportal_api_key
             environment = (
@@ -181,12 +182,19 @@ class OperationCoordinator:
                 else {}
             )
             if self._cancel_requested:
-                self._finish(state, OperationStatus.CANCELLED, result.exit_code, **report_updates)
+                self._finish(
+                    state,
+                    OperationStatus.CANCELLED,
+                    result.exit_code,
+                    artifact_directory=self._allocated_directory(expected_directory),
+                    **report_updates,
+                )
                 return
-            run_directory = find_result_directory(self._settings.artifacts_directory, previous)
+            run_directory = expected_directory if expected_directory.is_dir() else None
             summary = None
+            junit_message = None
             if run_directory is not None:
-                summary = read_junit_summary(run_directory / "reports" / "junit.xml")
+                summary, junit_message = self._read_summary(run_directory)
                 if self._settings.allure_enabled:
                     report_updates.update(await self._publish_allure(state, run_directory))
                     if self._cancel_requested:
@@ -206,6 +214,7 @@ class OperationCoordinator:
                 result.exit_code,
                 artifact_directory=str(run_directory) if run_directory is not None else None,
                 summary=summary,
+                junit_message=junit_message,
                 **report_updates,
             )
         except TimeoutError:
@@ -222,17 +231,29 @@ class OperationCoordinator:
                 OperationStatus.TIMED_OUT,
                 None,
                 message="Hardware test run timed out",
+                artifact_directory=self._allocated_directory(expected_directory),
                 **report_updates,
             )
         except Exception as error:
-            self._finish(state, OperationStatus.INFRASTRUCTURE_ERROR, message=str(error))
+            self._finish(
+                state,
+                OperationStatus.INFRASTRUCTURE_ERROR,
+                message=str(error),
+                artifact_directory=self._allocated_directory(expected_directory),
+            )
 
     async def _publish_allure(
         self,
         state: OperationState,
         run_directory: Path,
     ) -> dict[str, object]:
-        results_directory = run_directory / "allure-results"
+        results_path = self._settings.allure_results_path
+        if results_path is None:
+            return {
+                "report_status": ReportStatus.FAILED,
+                "report_message": "Allure results are disabled",
+            }
+        results_directory = resolve_report_path(run_directory, results_path)
         if not results_directory.is_dir():
             return {
                 "report_status": ReportStatus.FAILED,
@@ -300,6 +321,22 @@ class OperationCoordinator:
             }
         )
         self._state_store.write(finished)
+
+    @staticmethod
+    def _allocated_directory(expected: Path) -> str | None:
+        return str(expected) if expected.is_dir() else None
+
+    def _read_summary(self, run_directory: Path) -> tuple[TestSummary | None, str | None]:
+        junit_path = self._settings.junit_path
+        if junit_path is None:
+            return None, None
+        junit_file = resolve_report_path(run_directory, junit_path)
+        if not junit_file.is_file():
+            return None, "The configured JUnit report was not created"
+        try:
+            return read_junit_summary(junit_file), None
+        except Exception:
+            return None, "The configured JUnit report could not be read"
 
     @staticmethod
     def _new_id(prefix: str) -> str:

@@ -6,6 +6,7 @@ from unittest.mock import Mock
 import pytest
 
 from hardware_test.pytest_plugin import pytest_configure as configure_artifacts
+from tests.conftest import _escape_property
 from tests.conftest import pytest_configure as configure_allure
 
 
@@ -16,7 +17,7 @@ def _config(tmp_path: Path, options: dict[str, object], *, adapter_installed: bo
     config.stash = pytest.Stash()
     config.getini.return_value = []
     config.getoption.side_effect = lambda name, default=None: options.get(name, default)
-    config.pluginmanager.has_plugin.return_value = adapter_installed
+    config.pluginmanager.has_plugin.side_effect = lambda name: name == "html" or adapter_installed
     return config
 
 
@@ -48,3 +49,15 @@ def test_allure_rejects_custom_results_directory_at_the_same_time(tmp_path: Path
 
     with pytest.raises(pytest.UsageError, match="--allure and --alluredir"):
         configure_allure(config)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("run-123", "run-123"),
+        (" a=b:c\\d\n\r\t#!", r"\ a\=b\:c\\d\u000a\u000d\u0009\#\!"),
+        ("стенд 🧪", r"\u0441\u0442\u0435\u043d\u0434\ \ud83e\uddea"),
+    ],
+)
+def test_allure_properties_escape_special_characters(value: str, expected: str) -> None:
+    assert _escape_property(value) == expected

@@ -1,20 +1,42 @@
 """Tests for shared pytest plugin configuration."""
 
 import logging
+import subprocess
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 
 from hardware_test.pytest_plugin import (
-    _log_test_class,
+    _git_revision,
     get_run_directory,
     pytest_configure,
     pytest_runtest_makereport,
-    pytest_terminal_summary,
 )
+from tests.conftest import _log_test_class, pytest_terminal_summary
+from tests.conftest import pytest_configure as configure_reports
+from tests.conftest import pytest_runtest_makereport as report_failure
 
 pytest_plugins = ["pytester"]
+
+
+def test_git_revision_is_optional_when_git_is_missing(tmp_path: Path) -> None:
+    with (
+        patch("hardware_test.pytest_plugin.shutil.which", return_value=None),
+        patch("hardware_test.pytest_plugin.subprocess.run") as run,
+    ):
+        assert _git_revision(tmp_path) is None
+    run.assert_not_called()
+
+
+@pytest.mark.parametrize("error", [OSError("unavailable"), subprocess.TimeoutExpired("git", 2)])
+def test_git_revision_errors_do_not_fail_the_run(tmp_path: Path, error: Exception) -> None:
+    with (
+        patch("hardware_test.pytest_plugin.shutil.which", return_value="/fake/git"),
+        patch("hardware_test.pytest_plugin.subprocess.run", side_effect=error) as run,
+    ):
+        assert _git_revision(tmp_path) is None
+    assert run.call_args.kwargs["timeout"] == 2
 
 
 class DescribedTestClass:
@@ -53,9 +75,10 @@ def test_pytest_configure_uses_one_run_directory(tmp_path: Path) -> None:
     config.option = Mock()
     config.stash = pytest.Stash()
     config.getini.return_value = []
-    config.getoption.return_value = []
+    config.getoption.side_effect = lambda name, default=None: default
 
     pytest_configure(config)
+    configure_reports(config)
 
     log_path = Path(config.option.log_file)
     junit_path = Path(config.option.xmlpath)
@@ -75,7 +98,9 @@ def test_pytest_configure_uses_one_run_directory(tmp_path: Path) -> None:
 
 
 def test_pytest_session_generates_self_contained_html_report(pytester: pytest.Pytester) -> None:
-    pytester.makepyfile("def test_example():\n    assert True\n")
+    repository = Path(__file__).resolve().parents[2]
+    pytester.makeconftest((repository / "tests" / "conftest.py").read_text())
+    pytester.makepyfile("def test_example() -> None:\n    assert True\n")
 
     result = pytester.runpytest_subprocess("-q")
 
@@ -94,6 +119,7 @@ def test_pytest_configure_mutes_configured_and_cli_loggers(tmp_path: Path) -> No
 
     config = Mock(spec=pytest.Config)
     config.rootpath = tmp_path
+    config.pluginmanager = Mock()
     config.option = Mock()
     config.stash = pytest.Stash()
     config.getini.return_value = ["paramiko"]
@@ -105,6 +131,7 @@ def test_pytest_configure_mutes_configured_and_cli_loggers(tmp_path: Path) -> No
 
     try:
         pytest_configure(config)
+        configure_reports(config)
 
         assert paramiko_logger.level > logging.CRITICAL
         assert urllib3_logger.level > logging.CRITICAL
@@ -150,10 +177,10 @@ def test_failed_test_report_is_logged(caplog: pytest.LogCaptureFixture) -> None:
     report.when = "setup"
     report.longreprtext = "RuntimeError: fixture setup failed"
 
-    report_hook = pytest_runtest_makereport(item)
+    report_hook = report_failure(item)
     next(report_hook)
     with (
-        caplog.at_level(logging.ERROR, logger="hardware_test.pytest_plugin"),
+        caplog.at_level(logging.ERROR, logger="tests.conftest"),
         pytest.raises(StopIteration),
     ):
         report_hook.send(report)
@@ -174,7 +201,7 @@ def test_terminal_summary_is_logged() -> None:
         "deselected": [Mock(count_towards_summary=True) for _ in range(2)],
     }
 
-    with patch("hardware_test.pytest_plugin.logger") as logger_mock:
+    with patch("tests.conftest.logger") as logger_mock:
         pytest_terminal_summary(terminalreporter, pytest.ExitCode.OK)
 
     logger_mock.info.assert_called_once_with(
@@ -222,7 +249,7 @@ def test_terminal_summary_lists_failed_test_phases() -> None:
         "error": [setup_error, teardown_error],
     }
 
-    with patch("hardware_test.pytest_plugin.logger") as logger_mock:
+    with patch("tests.conftest.logger") as logger_mock:
         pytest_terminal_summary(terminalreporter, pytest.ExitCode.TESTS_FAILED)
 
     logger_mock.info.assert_called_once_with(

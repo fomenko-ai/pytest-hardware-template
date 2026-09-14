@@ -284,7 +284,9 @@ development, run the narrowest relevant test first, for example:
 uv run pytest tests/unit/logging/test_step_logger.py -vv
 ```
 
-Every pytest session writes human-readable and machine-readable results into one run directory:
+For test sessions collected under this repository's `tests/` tree, the runtime plugin allocates
+one new run directory and the reporting policy in `tests/conftest.py` writes the standard reports
+into it:
 
 ```text
 artifacts/
@@ -298,10 +300,47 @@ artifacts/
 
 `pytest.log` contains Python log messages, including numbered steps, while `junit.xml` contains
 test outcomes and durations for CI systems. `report.html` is a self-contained human-readable test
-report that can be opened without separate assets. All three files are created automatically; no
-pytest CLI options are required. `artifacts/latest.log` is a hard link to the log of the most
-recently started pytest session, so new messages are available through both paths without
-duplicating file data.
+report that can be opened without separate assets. All three files are created automatically for
+the template's tests; no report path options are required. `artifacts/latest.log` is a hard link
+to the log of the most recently started pytest session, so new messages are available through
+both paths without duplicating file data.
+
+The runtime plugin can also be used without the template reporting policy. It still creates an
+empty session directory and exposes its path and metadata, while requiring no JUnit, HTML, Allure,
+or ReportPortal adapter. A caller may correlate a session in advance with `--run-id ID` and may
+select its artifact root with `--artifacts-root PATH`; relative roots are resolved from pytest's
+project root. Existing session directories are never reused. The default generated identifier and
+`artifacts/` root preserve the ordinary template layout.
+
+JUnit uses pytest's `xunit2` format. Suite properties include `run_id`, `python_version`,
+and `pytest_version`; `git_revision`, `stand`, `scenario`, and the resolved `marker_sequence`
+are included when available. Git lookup is local and limited to two seconds; missing Git or
+checkout metadata does not fail the run. The revision identifies HEAD, not uncommitted changes.
+Metadata is collected once by the runtime before test collection. The project reporting policy
+writes it at INFO level in a `Run metadata` header in `pytest.log`, before test collection, and
+copies those same values into suite properties. Collection-only runs and collection failures
+before fixture setup retain the log header but do not include JUnit properties. No device
+connection is made to collect metadata. The final log summary contains results without repeating
+the header.
+
+The HTML report's Environment section includes the same `run_id` and available
+`git_revision`, `stand`, `scenario`, and `marker_sequence` values. Python and pytest
+versions remain in the standard Environment entries. Run context is added before
+collection, so it is also available in HTML reports of collection failures.
+
+When optional reporting is enabled for this repository's tests, the same context is also
+written to Allure's `environment.properties` (**Metadata** in Allure 3) and sent as
+ReportPortal launch attributes. Custom ReportPortal attributes such as the runner's
+`operation` are retained; shared keys use the current pytest run values. Container runs
+require a rebuilt test image to include these changes; previous reports remain unchanged.
+
+JUnit also includes captured Python logs, stdout, and stderr for unsuccessful tests;
+captured output from passing tests is omitted. Capture settings and logger levels still apply:
+`-s` disables stdout/stderr capture, and muted loggers remain excluded. Keep secrets out of
+test output. The run-specific `pytest.log` remains the complete session diagnostic log.
+With pytest 9.1.1, a setup failure followed by successful teardown retains its traceback in
+JUnit but omits captured output when passing-test logging is disabled. Use the HTML report
+for that captured output and `pytest.log` for Python log messages.
 
 ![Example self-contained pytest HTML report](helpers/test-runner-service/docs/images/html-report-example.png)
 
@@ -336,18 +375,49 @@ uv run --group allure pytest tests/unit tests/integration --allure
 ```
 
 The independently deployable `helpers/allure/` stack provides Allure 3 generation and official
-Allure Report Storage for local or server-hosted reports. See [the Allure guide](docs/allure.md)
+Allure Report Storage for local or server-hosted reports. See
+[the Allure guide](helpers/allure/README.md)
 for the data flow, setup, publication, retained-report browsing, and optional Test Runner
 integration. Allure remains disabled by default.
 
 ### Optional ReportPortal reporting
 
 Install the `reportportal` dependency group and use the official `--reportportal` pytest flag
-to send results during execution. The independently deployable `helpers/reportportal/` stack
-includes pinned Docker Compose services and instructions for local and server installation.
+to send results during execution:
+
+```bash
+export RP_API_KEY='replace-with-project-api-key'
+uv run --group reportportal pytest tests/unit tests/integration \
+  --reportportal \
+  --rp-endpoint https://reportportal.example \
+  --rp-project hardware_tests \
+  --rp-launch local-framework-check
+unset RP_API_KEY
+```
+
+The independently deployable `helpers/reportportal/` stack includes pinned Docker Compose
+services and instructions for local and server installation.
 See [the ReportPortal guide](helpers/reportportal/README.md) for API-key setup, Test Runner
 integration, networking, backups, and reporting limitations. ReportPortal and Allure can be
 enabled independently; both remain outside the published library dependencies.
+
+### Verify optional reporting integrations
+
+The ordinary dependency set does not install the optional Allure and ReportPortal adapters, so
+their integration cases are reported as skipped. Install both locked dependency groups and run
+the reporting tests without external services or reporting credentials:
+
+```bash
+uv sync --locked --group allure --group reportportal
+uv run --group allure --group reportportal pytest \
+  tests/integration/test_allure_reporting.py \
+  tests/integration/test_reportportal_reporting.py \
+  tests/integration/test_run_metadata.py
+```
+
+The ReportPortal cases use a fake client, and the Allure cases inspect locally generated result
+files. No ReportPortal endpoint, API key, Allure Storage instance, or environment variables are
+required.
 
 ## AI agent skills
 
@@ -510,7 +580,7 @@ HTML interface, see [`helpers/test-runner-service`](helpers/test-runner-service/
 helper is an independently packaged Compose application and keeps its dependencies out of the main
 framework. Its UI links to the current run while the page remains open, provides a persistent index
 of every retained local artifact directory, and can link to the configured
-[Allure repository tree](docs/allure.md#publish-from-the-test-runner)
+[Allure repository tree](helpers/allure/README.md#publish-from-the-test-runner)
 and [ReportPortal launches](helpers/reportportal/README.md#connect-the-test-runner-on-the-same-docker-host).
 
 <p align="center">

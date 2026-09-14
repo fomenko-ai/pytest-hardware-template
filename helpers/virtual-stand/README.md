@@ -9,6 +9,11 @@ It is intended for local end-to-end verification of `tests/hardware/` and
 `helpers/test-runner-service/`. It does not emulate USB, serial timing, power control, or faults of
 real equipment, and it is not part of the ordinary non-hardware CI gate.
 
+The Compose deployment shares one artifact root between the runner and test containers. The
+runner passes an explicit pytest session identity, while pytest creates the individual run
+directory. Rebuild both the runner and framework images after changing this runtime contract;
+there is no compatibility mode for older images.
+
 ## Container scripts
 
 `src/entrypoint.sh` validates the runtime password, assigns it to the `tester` account, generates
@@ -137,3 +142,66 @@ Like the standalone runner deployment, this Compose stack mounts `/var/run/docke
 runner. Docker daemon access is equivalent to privileged control of the host. Use the helper only
 on a trusted development machine, keep the runner bound to loopback, and never reuse production
 credentials for the emulator.
+
+## Verify Allure and ReportPortal together
+
+This combined check assumes that Allure Report Storage and ReportPortal are already running,
+the Allure publisher image is built, and the ReportPortal gateway is connected to
+`hardware-virtual-stand` as described in the linked walkthrough.
+
+1. Enable both integrations in this directory's ignored `.env`. Set the Allure access token and
+   browser-reachable URL, then set the ReportPortal endpoint, public URL, project, and API key.
+   Keep `TEST_RUNNER_ALLURE_RESULTS_PATH=allure-results` unless the test image uses another path.
+2. Create the ignored Compose override that forwards ReportPortal settings to the runner:
+
+   ```bash
+   cat > runtime/reportportal.compose.yaml <<'YAML'
+   services:
+     test-runner:
+       environment:
+         TEST_RUNNER_REPORTPORTAL_ENABLED: ${TEST_RUNNER_REPORTPORTAL_ENABLED:-false}
+         TEST_RUNNER_REPORTPORTAL_ENDPOINT: ${TEST_RUNNER_REPORTPORTAL_ENDPOINT:?set endpoint}
+         TEST_RUNNER_REPORTPORTAL_PUBLIC_URL: ${TEST_RUNNER_REPORTPORTAL_PUBLIC_URL:?set public URL}
+         TEST_RUNNER_REPORTPORTAL_PROJECT: ${TEST_RUNNER_REPORTPORTAL_PROJECT:?set project}
+         TEST_RUNNER_REPORTPORTAL_API_KEY: ${TEST_RUNNER_REPORTPORTAL_API_KEY:?set API key}
+   YAML
+   ```
+
+3. Validate the merged configuration:
+
+   ```bash
+   docker compose --env-file .env -f compose.yaml -f runtime/reportportal.compose.yaml \
+     config --quiet
+   ```
+
+4. Rebuild and restart the runner with both reporting configurations:
+
+   ```bash
+   docker compose --env-file .env -f compose.yaml -f runtime/reportportal.compose.yaml up --build --detach test-runner
+   ```
+
+5. Open the runner UI, build a new framework image, and wait for `succeeded`. The new image must
+   be built after both integrations are enabled so it contains `allure-pytest` and
+   `pytest-reportportal`.
+6. Run `virtual-smoke` on `virtual-stand` with the new image. Expect the operation status
+   `passed`, exit code `0`, and one passed test.
+7. Open **Open Allure report**. Confirm that the report contains
+   `TestVirtualDut.test_command_path` and that **Metadata** includes `run_id`, `stand`, and
+   `scenario`. Use **All Allure reports** to confirm that the publication is retained.
+8. Open **Open ReportPortal launch**. Confirm the same test and its INFO logs, then check the
+   launch attributes `run_id`, `stand:virtual-stand`, and `scenario:virtual-smoke`. Use
+   **All ReportPortal launches** to confirm that the launch is retained.
+9. Inspect the machine-readable runner result:
+
+   ```bash
+   curl --fail http://127.0.0.1:${TEST_RUNNER_PORT:-8080}/v1/current
+   ```
+
+   A successful combined check has `status: passed`, `exit_code: 0`,
+   `report_status: published`, a nonempty `report_url`, `reportportal_status: finished`, and a
+   nonempty `reportportal_url`. Also open the local pytest log, JUnit, and HTML links to confirm
+   that reporting integrations did not replace the standard artifacts.
+
+If pytest passes but either reporting status is `failed`, `unavailable`, or `incomplete`, inspect
+the runner live output and the run-specific `pytest.log`. A reporting failure must leave the
+pytest status and exit code unchanged.

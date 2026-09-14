@@ -11,9 +11,11 @@ import pytest
 
 @pytest.mark.integration
 @pytest.mark.parametrize("allure_enabled", [False, True])
+@pytest.mark.parametrize("attribute_source", ["ini", "cli", "environment"])
 def test_reportportal_keeps_local_artifacts_and_reports_test_lifecycle(
     tmp_path: Path,
     allure_enabled: bool,
+    attribute_source: str,
 ) -> None:
     if importlib.util.find_spec("pytest_reportportal") is None:
         pytest.skip("install the reportportal group to exercise the optional agent")
@@ -45,6 +47,8 @@ def test_reportportal_keeps_local_artifacts_and_reports_test_lifecycle(
     )
     script = """
 from unittest.mock import MagicMock, patch
+from pathlib import Path
+import xml.etree.ElementTree as ET
 import pytest
 
 pytest.register_assert_rewrite("pytest_reportportal")
@@ -59,14 +63,34 @@ with (
 ):
     args = ["test_example.py", "--strict-markers", "--reportportal",
             "--rp-endpoint", "http://unused.invalid", "--rp-project", "test_project",
-            "--rp-launch", "fake-launch", "-o", "rp_log_level=INFO"]
+            "--rp-launch", "fake-launch", "--stand", "example-stand",
+            "-o", "rp_log_level=INFO"]
     import sys
+    attributes = ["operation:example-operation", "custom-tag", "stand:stale", "run_id:stale"]
+    if sys.argv[2] == "ini":
+        args.extend(["-o", "rp_launch_attributes=" + " ".join(attributes)])
+    elif sys.argv[2] == "cli":
+        args.extend(["--rp-launch-attributes", *attributes])
     if sys.argv[1] == "allure":
         args.append("--allure")
     result = pytest.main(args)
 assert result == pytest.ExitCode.TESTS_FAILED
 factory.assert_called_once()
 client.start_launch.assert_called_once()
+report = next(Path("artifacts").glob("*/reports/junit.xml"))
+properties = {node.get("name"): node.get("value")
+              for node in ET.parse(report).findall("testsuite/properties/property")}
+attributes = client.start_launch.call_args.kwargs["attributes"]
+for name, value in properties.items():
+    assert {"key": name, "value": value} in attributes, (name, attributes)
+    assert sum(attribute.get("key") == name for attribute in attributes) == 1
+assert {"key": "operation", "value": "example-operation"} in attributes
+assert {"value": "custom-tag"} in attributes
+assert properties["stand"] == "example-stand"
+assert "git_revision" not in properties
+if sys.argv[1] == "allure":
+    environment = report.parent.parent / "allure-results" / "environment.properties"
+    assert dict(line.split("=", 1) for line in environment.read_text().splitlines()) == properties
 client.finish_launch.assert_called_once()
 client.close.assert_called_once()
 statuses = [call.kwargs.get("status") for call in client.finish_test_item.call_args_list]
@@ -80,8 +104,18 @@ assert any("reporting integration step" in str(call) for call in client.log.call
         and key not in {"PYTEST_ADDOPTS", "PYTEST_DISABLE_PLUGIN_AUTOLOAD"}
     }
     environment["RP_API_KEY"] = "fake-key-must-not-be-logged"
+    if attribute_source == "environment":
+        environment["RP_LAUNCH_ATTRIBUTES"] = (
+            "operation:example-operation;custom-tag;stand:stale;run_id:stale"
+        )
     result = subprocess.run(  # noqa: S603 - fixed interpreter and test-owned script
-        [sys.executable, "-c", script, "allure" if allure_enabled else "reportportal"],
+        [
+            sys.executable,
+            "-c",
+            script,
+            "allure" if allure_enabled else "reportportal",
+            attribute_source,
+        ],
         cwd=tmp_path,
         env=environment,
         capture_output=True,

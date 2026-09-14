@@ -14,6 +14,7 @@ def test_state_round_trip_and_log_reset(tmp_path: Path) -> None:
     store.initialize()
     state = OperationState(
         operation_id="run-123",
+        run_id="pytest-run-456",
         operation_type=OperationType.RUN_TESTS,
         status=OperationStatus.RUNNING,
         created_at=datetime.now(UTC),
@@ -24,7 +25,10 @@ def test_state_round_trip_and_log_reset(tmp_path: Path) -> None:
     store.log_file.write_text("old output\n", encoding="utf-8")
     store.reset_log()
 
-    assert store.read() == state
+    restored = store.read()
+    assert restored == state
+    assert restored is not None
+    assert restored.run_id == "pytest-run-456"
     assert store.log_file.read_text(encoding="utf-8") == ""
     assert not store.state_file.with_suffix(".json.tmp").exists()
 
@@ -65,3 +69,27 @@ def test_comma_separated_environment_settings(monkeypatch: pytest.MonkeyPatch) -
 def test_allure_requires_report_access_token_when_enabled() -> None:
     with pytest.raises(ValidationError, match="TEST_RUNNER_ALLURE_ACCESS_TOKEN"):
         Settings(_env_file=None, allure_enabled=True)
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/absolute/report.xml", "../outside.xml", "reports/../../outside.xml", "."],
+)
+def test_report_paths_must_stay_below_session_directory(path: str) -> None:
+    with pytest.raises(ValidationError, match="relative descendants"):
+        Settings(_env_file=None, junit_path=path)
+
+
+def test_empty_report_paths_disable_capabilities() -> None:
+    settings = Settings(
+        _env_file=None,
+        pytest_log_path="",
+        junit_path="",
+        html_path="",
+        allure_results_path="",
+    )
+
+    assert settings.pytest_log_path is None
+    assert settings.junit_path is None
+    assert settings.html_path is None
+    assert settings.allure_results_path is None

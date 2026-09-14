@@ -63,6 +63,7 @@ class OperationState(BaseModel):
 
     schema_version: int = 1
     operation_id: str
+    run_id: str | None = None
     operation_type: OperationType
     status: OperationStatus
     created_at: datetime
@@ -76,6 +77,7 @@ class OperationState(BaseModel):
     exit_code: int | None = None
     artifact_directory: str | None = None
     summary: TestSummary | None = None
+    junit_message: str | None = None
     report_status: ReportStatus | None = None
     report_url: str | None = None
     report_message: str | None = None
@@ -91,6 +93,7 @@ class OperationState(BaseModel):
         operation_type: OperationType,
         status: OperationStatus,
         *,
+        run_id: str | None = None,
         image_reference: str | None = None,
         stand: str | None = None,
         scenario: str | None = None,
@@ -100,6 +103,7 @@ class OperationState(BaseModel):
         now = datetime.now(UTC)
         return cls(
             operation_id=operation_id,
+            run_id=run_id,
             operation_type=operation_type,
             status=status,
             created_at=now,

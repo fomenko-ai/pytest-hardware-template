@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from textwrap import dedent
 
@@ -80,6 +81,13 @@ def test_allure_reports_results_steps_attachments_and_keeps_local_artifacts(
     assert (run_directory / "reports" / "junit.xml").is_file()
     assert (run_directory / "reports" / "report.html").is_file()
     results_directory = run_directory / "allure-results"
+    junit = ET.parse(run_directory / "reports" / "junit.xml")  # noqa: S314 -- test-generated XML
+    properties = {
+        node.get("name"): node.get("value")
+        for node in junit.findall("testsuite/properties/property")
+    }
+    environment_properties = (results_directory / "environment.properties").read_text()
+    assert dict(line.split("=", 1) for line in environment_properties.splitlines()) == properties
     reports = [
         json.loads(path.read_text(encoding="utf-8"))
         for path in results_directory.glob("*-result.json")

@@ -12,8 +12,9 @@ small and optional unless the user explicitly requires Allure for every run.
 
 Read the target repository's `AGENTS.md` and applicable nested instructions completely. Read
 its README, reporting documentation, relevant architecture decisions, and active task record.
-In this template, start with [docs/allure.md](../../docs/allure.md). When installed separately,
-locate the target project's equivalent documentation; do not assume this relative path exists.
+In this template, start with
+[helpers/allure/README.md](../../helpers/allure/README.md). When installed separately, locate the
+target project's equivalent documentation; do not assume this relative path exists.
 
 Inspect Git status and diffs, dependency metadata, pytest configuration and plugins, artifact
 creation, and relevant tests. Read Docker, CI, and runner-service documentation only when those

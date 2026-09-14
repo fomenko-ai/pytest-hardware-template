@@ -13,6 +13,10 @@ from test_runner_service.worker import OperationCoordinator, RunnerBusyError
 from tests.fakes import FakeProcessRunner
 
 
+def _run_directory(command: tuple[str, ...], settings: Settings) -> Path:
+    return settings.artifacts_directory / command[command.index("--run-id") + 1]
+
+
 def test_build_records_inspected_image_id(settings: Settings) -> None:
     async def exercise() -> None:
         store = StateStore(settings.state_directory)
@@ -76,7 +80,7 @@ def test_hardware_run_reads_new_junit_result(settings: Settings) -> None:
                 environment: dict[str, str] | None = None,
             ) -> ProcessResult:
                 result = await super().run(command, log_file, environment)
-                run_directory = settings.artifacts_directory / "new-run"
+                run_directory = _run_directory(command, settings)
                 reports = run_directory / "reports"
                 reports.mkdir(parents=True)
                 (run_directory / "pytest.log").write_text("failure\n", encoding="utf-8")
@@ -100,6 +104,7 @@ def test_hardware_run_reads_new_junit_result(settings: Settings) -> None:
 
         assert state is not None
         assert state.status is OperationStatus.FAILED
+        assert state.run_id == state.operation_id
         assert state.summary is not None
         assert state.summary.failed == 1
         assert state.artifact_directory is not None
@@ -129,7 +134,7 @@ def test_allure_report_is_published_without_changing_pytest_outcome(
             ) -> ProcessResult:
                 result = await super().run(command, log_file, environment)
                 if len(self.commands) == 1:
-                    run_directory = settings.artifacts_directory / "allure-run"
+                    run_directory = _run_directory(command, settings)
                     reports = run_directory / "reports"
                     reports.mkdir(parents=True)
                     (run_directory / "allure-results").mkdir()
@@ -183,7 +188,7 @@ def test_allure_publication_failure_is_reported_separately(settings: Settings) -
             ) -> ProcessResult:
                 result = await super().run(command, log_file, environment)
                 if len(self.commands) == 1:
-                    run_directory = settings.artifacts_directory / "allure-run"
+                    run_directory = _run_directory(command, settings)
                     reports = run_directory / "reports"
                     reports.mkdir(parents=True)
                     (run_directory / "allure-results").mkdir()
@@ -210,6 +215,163 @@ def test_allure_publication_failure_is_reported_separately(settings: Settings) -
         assert state.status is OperationStatus.PASSED
         assert state.report_status == "failed"
         assert state.report_message == "Allure publication failed; inspect the operation log"
+
+    asyncio.run(exercise())
+
+
+def test_run_without_junit_keeps_explicit_artifact_correlation(settings: Settings) -> None:
+    async def exercise() -> None:
+        store = StateStore(settings.state_directory)
+        store.initialize()
+
+        class LogOnlyRunner(FakeProcessRunner):
+            async def run(
+                self,
+                command: tuple[str, ...],
+                log_file: Path,
+                environment: dict[str, str] | None = None,
+            ) -> ProcessResult:
+                result = await super().run(command, log_file, environment)
+                run_directory = _run_directory(command, settings)
+                run_directory.mkdir()
+                (run_directory / "pytest.log").write_text("diagnostics\n", encoding="utf-8")
+                return result
+
+        coordinator = OperationCoordinator(
+            settings,
+            store,
+            DockerCommandBuilder(settings),
+            LogOnlyRunner([ProcessResult(0, "pytest output")]),
+        )
+
+        await coordinator.start_run("sha256:abc", "stand-01", "smoke")
+        await _wait_for_terminal(store)
+        state = store.read()
+
+        assert state is not None
+        assert state.status is OperationStatus.PASSED
+        assert state.exit_code == 0
+        assert state.run_id == state.operation_id
+        assert state.artifact_directory == str(settings.artifacts_directory / state.run_id)
+        assert state.summary is None
+        assert state.junit_message == "The configured JUnit report was not created"
+
+    asyncio.run(exercise())
+
+
+def test_malformed_junit_does_not_replace_pytest_or_allure_result(settings: Settings) -> None:
+    async def exercise() -> None:
+        configured = settings.model_copy(
+            update={"allure_enabled": True, "allure_access_token": SecretStr("ars1.secret")}
+        )
+        store = StateStore(settings.state_directory)
+        store.initialize()
+
+        class MalformedJunitRunner(FakeProcessRunner):
+            async def run(
+                self,
+                command: tuple[str, ...],
+                log_file: Path,
+                environment: dict[str, str] | None = None,
+            ) -> ProcessResult:
+                result = await super().run(command, log_file, environment)
+                if len(self.commands) == 1:
+                    run_directory = _run_directory(command, settings)
+                    reports = run_directory / "reports"
+                    reports.mkdir(parents=True)
+                    (run_directory / "allure-results").mkdir()
+                    (reports / "junit.xml").write_text("not XML", encoding="utf-8")
+                return result
+
+        runner = MalformedJunitRunner(
+            [
+                ProcessResult(1, "pytest failed"),
+                ProcessResult(0, "Published https://allure.example/reports/malformed\n"),
+            ]
+        )
+        coordinator = OperationCoordinator(
+            configured,
+            store,
+            DockerCommandBuilder(configured),
+            runner,
+        )
+
+        await coordinator.start_run("sha256:abc", "stand-01", "smoke")
+        await _wait_for_terminal(store)
+        state = store.read()
+
+        assert state is not None
+        assert state.status is OperationStatus.FAILED
+        assert state.exit_code == 1
+        assert state.summary is None
+        assert state.junit_message == "The configured JUnit report could not be read"
+        assert state.report_status is not None
+        assert state.report_status.value == "published"
+        assert state.report_url == "https://allure.example/reports/malformed"
+
+    asyncio.run(exercise())
+
+
+def test_disabled_junit_has_no_summary_diagnostic(settings: Settings) -> None:
+    async def exercise() -> None:
+        configured = settings.model_copy(update={"junit_path": None})
+        store = StateStore(settings.state_directory)
+        store.initialize()
+
+        class AllocatingRunner(FakeProcessRunner):
+            async def run(
+                self,
+                command: tuple[str, ...],
+                log_file: Path,
+                environment: dict[str, str] | None = None,
+            ) -> ProcessResult:
+                result = await super().run(command, log_file, environment)
+                _run_directory(command, settings).mkdir()
+                return result
+
+        coordinator = OperationCoordinator(
+            configured,
+            store,
+            DockerCommandBuilder(configured),
+            AllocatingRunner([ProcessResult(0, "passed")]),
+        )
+
+        await coordinator.start_run("sha256:abc", "stand-01", "smoke")
+        await _wait_for_terminal(store)
+        state = store.read()
+
+        assert state is not None
+        assert state.status is OperationStatus.PASSED
+        assert state.summary is None
+        assert state.junit_message is None
+
+    asyncio.run(exercise())
+
+
+def test_unrelated_artifact_directory_is_not_attributed_to_run(settings: Settings) -> None:
+    unrelated = settings.artifacts_directory / "unrelated"
+    (unrelated / "reports").mkdir(parents=True)
+    (unrelated / "reports" / "junit.xml").write_text("<testsuites/>", encoding="utf-8")
+
+    async def exercise() -> None:
+        store = StateStore(settings.state_directory)
+        store.initialize()
+        coordinator = OperationCoordinator(
+            settings,
+            store,
+            DockerCommandBuilder(settings),
+            FakeProcessRunner([ProcessResult(2, "startup failed")]),
+        )
+
+        await coordinator.start_run("sha256:abc", "stand-01", "smoke")
+        await _wait_for_terminal(store)
+        state = store.read()
+
+        assert state is not None
+        assert state.status is OperationStatus.FAILED
+        assert state.exit_code == 2
+        assert state.artifact_directory is None
+        assert state.summary is None
 
     asyncio.run(exercise())
 

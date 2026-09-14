@@ -83,6 +83,36 @@ Hardware-test results keep the main project's standard layout:
 Build, pull, and test execution are separate API operations. While any operation is active, another
 request receives HTTP 409 instead of being queued.
 
+Each test operation has an `operation_id` for runner state and a `run_id` for its pytest session.
+They currently have the same value, but remain separate fields in `current.json`. Before starting
+the container, the runner derives the expected host directory as
+`TEST_RUNNER_ARTIFACTS_DIRECTORY/<run_id>` and passes the identity and container artifact root to
+pytest explicitly. The runner creates the artifact root; pytest creates the individual session
+directory. Existing directories are never reused.
+
+The runner reads results only from that expected directory. It does not scan for a recently
+modified directory or require JUnit to identify a session. Therefore a log-only session can still
+set `artifact_directory`, while an early process failure that creates no session directory retains
+its exit code without attributing unrelated artifacts.
+
+The runner's supported report paths are configured relative to each session directory:
+
+```dotenv
+TEST_RUNNER_PYTEST_LOG_PATH=pytest.log
+TEST_RUNNER_JUNIT_PATH=reports/junit.xml
+TEST_RUNNER_HTML_PATH=reports/report.html
+TEST_RUNNER_ALLURE_RESULTS_PATH=allure-results
+```
+
+An empty value disables that capability. Paths must remain below the session directory. Public
+download names stay `pytest.log`, `junit.xml`, and `report.html`, even when their physical paths
+are customized. The settings must match the reporting policy of the selected test image;
+historical runs are interpreted with the runner's current path configuration.
+
+A missing or malformed configured JUnit report leaves `summary` unavailable and records a
+diagnostic in `junit_message`. It does not replace the pytest `status` or `exit_code`, and it does
+not prevent Allure publication or ReportPortal lookup. Disabled JUnit produces no diagnostic.
+
 ## Host preparation
 
 Create the runtime directories and place the framework checkout and physical inventory at the
@@ -137,8 +167,6 @@ at `/reports/tree?repo=pytest-hardware-template`.
 `TEST_RUNNER_ALLURE_PUBLIC_URL` is the browser-reachable Storage origin. When set, the UI exposes
 **All Allure reports**; this is separate from **Open Allure report** for the latest publication.
 
-## Start with Docker Compose
-
 ### Optional ReportPortal integration
 
 The runner supports `pytest-reportportal` independently of Allure. Follow the
@@ -153,6 +181,15 @@ enabling reporting; remote images must contain the `reportportal` group. Results
 pytest execution. Launch names match operation IDs, and the UI links to the project launches
 and the latest run. The API exposes independent `reportportal_status`, `reportportal_url`, and
 `reportportal_message` fields. Status lookup failures do not change the pytest exit code.
+
+#### Combined reporting verification
+
+To verify Allure and ReportPortal together against the disposable DUT, use the
+[combined virtual-stand procedure](../virtual-stand/README.md#verify-allure-and-reportportal-together).
+It includes the merged Compose command, rebuilding the framework image with both adapters, and
+the expected runner, Allure, ReportPortal, and local-artifact results.
+
+## Start with Docker Compose
 
 ### Start the runner
 
@@ -350,8 +387,8 @@ already published under a prefix allowed by `TEST_RUNNER_ALLOWED_IMAGE_PREFIXES`
    ```
 
 6. Follow `/v1/current/events` again. After completion, `/v1/current` has status `passed` or
-   `failed`, an `artifact_directory`, and a JUnit-derived `summary` when pytest produced its normal
-   reports.
+   `failed`, distinct `operation_id` and `run_id` fields, an `artifact_directory` when pytest
+   allocated its session, and a JUnit-derived `summary` when pytest produced that report.
 
 7. Verify the published artifact list:
 

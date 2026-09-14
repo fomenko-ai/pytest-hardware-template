@@ -153,6 +153,11 @@ live output and the normal pytest artifacts through HTTP. Its retained-run page 
 from earlier runs even after the current status and console view have reset, and its optional
 Allure integration publishes a shareable report URL and links to the repository report tree.
 
+The runner assigns an explicit pytest `run_id` and knows the corresponding artifact directory
+before starting the container. It does not discover sessions through JUnit. Its log, JUnit, HTML,
+and Allure paths are optional settings relative to that directory, and reporting errors do not
+replace the launched command's exit code.
+
 The service is deployed by its own `compose.yaml` and talks directly to the host Docker daemon. It
 does not replace this launcher for manual or CI-provider-driven runs, and it does not add FastAPI or
 service dependencies to the main framework package. See the helper's README for its Docker socket

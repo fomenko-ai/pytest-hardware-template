@@ -40,10 +40,10 @@ def test_reportportal_commands_and_api_keep_secrets_server_side(
     configured = reportportal_settings.model_copy(update={"allure_enabled": allure})
     builder = DockerCommandBuilder(configured)
     build = builder.build_image("build-1")
-    command = builder.run_tests("run-1", "sha256:abc", "stand-01", "smoke")
+    command = builder.run_tests("run-1", "pytest-run-1", "sha256:abc", "stand-01", "smoke")
     assert "INSTALL_REPORTPORTAL=true" in build
     assert ("INSTALL_ALLURE=true" in build) is allure
-    assert ("--allure" in command) is allure
+    assert ("--alluredir" in command) is allure
     assert "--reportportal" in command
     assert command[command.index("--rp-launch") + 1] == "run-1"
     assert command[command.index("--rp-endpoint") + 1] == "https://internal.example/rp"

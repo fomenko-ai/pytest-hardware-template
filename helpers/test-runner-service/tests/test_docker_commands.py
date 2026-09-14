@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from test_runner_service.docker_commands import (
@@ -24,6 +26,7 @@ def test_build_command_uses_only_configured_paths(settings: Settings) -> None:
 def test_run_command_matches_framework_runtime_contract(settings: Settings) -> None:
     command = DockerCommandBuilder(settings).run_tests(
         "run-123",
+        "pytest-session-456",
         "sha256:abc123",
         "stand-01",
         "hardware-smoke",
@@ -48,6 +51,10 @@ def test_run_command_matches_framework_runtime_contract(settings: Settings) -> N
         "run",
         "pytest",
         "tests/hardware",
+        "--run-id",
+        "pytest-session-456",
+        "--artifacts-root",
+        "/app/artifacts",
         "--scenario",
         "hardware-smoke",
         "--inventory",
@@ -62,6 +69,7 @@ def test_run_command_joins_configured_docker_network(settings: Settings) -> None
 
     command = DockerCommandBuilder(network_settings).run_tests(
         "run-123",
+        "pytest-session-456",
         "sha256:abc123",
         "virtual-stand",
         "virtual-smoke",
@@ -81,10 +89,15 @@ def test_allure_enabled_build_and_run_commands(settings: Settings) -> None:
     builder = DockerCommandBuilder(allure_settings)
 
     build = builder.build_image("build-123")
-    run = builder.run_tests("run-123", "sha256:abc123", "stand-01", "hardware-smoke")
+    run = builder.run_tests(
+        "run-123", "pytest-session-456", "sha256:abc123", "stand-01", "hardware-smoke"
+    )
 
     assert build[-3:] == ("--build-arg", "INSTALL_ALLURE=true", str(settings.framework_source))
-    assert run[-1] == "--allure"
+    assert run[-2:] == (
+        "--alluredir",
+        "/app/artifacts/pytest-session-456/allure-results",
+    )
 
 
 def test_allure_publisher_mounts_only_the_selected_run(settings: Settings) -> None:
@@ -101,6 +114,31 @@ def test_allure_publisher_mounts_only_the_selected_run(settings: Settings) -> No
         "/results",
         "--config",
         "/opt/allure/allurerc.mjs",
+    )
+
+
+def test_allure_uses_configured_results_path(settings: Settings) -> None:
+    configured = settings.model_copy(
+        update={
+            "allure_enabled": True,
+            "allure_access_token": "ars1.secret",
+            "allure_results_path": Path("reports/allure-data"),
+        }
+    )
+    builder = DockerCommandBuilder(configured)
+
+    run = builder.run_tests(
+        "run-123", "pytest-run-456", "sha256:abc123", "stand-01", "hardware-smoke"
+    )
+    publish = builder.publish_allure("run-123", settings.artifacts_directory / "pytest-run-456")
+
+    assert run[-2:] == (
+        "--alluredir",
+        "/app/artifacts/pytest-run-456/reports/allure-data",
+    )
+    assert (
+        f"{settings.artifacts_directory / 'pytest-run-456' / 'reports/allure-data'}:/results:ro"
+        in publish
     )
 
 

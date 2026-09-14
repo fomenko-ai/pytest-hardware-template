@@ -1,9 +1,12 @@
 """Pytest command-line integration for inventory-backed hardware tests."""
 
 import logging
-from collections.abc import Generator
+import platform
+import re
+import shutil
+import subprocess
+from collections.abc import Generator, Mapping
 from datetime import datetime
-from inspect import getdoc
 from pathlib import Path
 
 import pytest
@@ -11,28 +14,20 @@ import pytest
 from hardware_test.logging import StepLogger
 from hardware_test.scenarios import ScenarioError, load_scenario, parse_marker_sequence
 
-_MUTED_LOG_LEVEL = logging.CRITICAL + 1
 _MARKER_SEQUENCE_KEY = pytest.StashKey[tuple[str, ...]]()
 _RUN_DIRECTORY_KEY = pytest.StashKey[Path]()
-_SUMMARY_WIDTH = 100
-
-logger = logging.getLogger(__name__)
+_RUN_METADATA_KEY = pytest.StashKey[dict[str, str]]()
+_RUN_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     """Register hardware selection options."""
     group = parser.getgroup("hardware-test")
-    parser.addini(
-        "muted_loggers",
-        "logger names muted during pytest runs",
-        type="linelist",
-        default=[],
-    )
+    group.addoption("--run-id", help="explicit identity for this pytest session")
     group.addoption(
-        "--mute-logger",
-        action="append",
-        default=[],
-        help="mute a Python logger during the test run (may be repeated)",
+        "--artifacts-root",
+        type=Path,
+        help="artifact root (relative paths resolve against the pytest project root)",
     )
     group.addoption(
         "-M",
@@ -55,32 +50,37 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_configure(config: pytest.Config) -> None:
-    """Write each pytest session log and test report to one artifacts directory."""
+    """Configure execution and allocate a new artifact directory for this session."""
     marker_sequence = _get_marker_sequence(config)
     if marker_sequence:
         _validate_registered_markers(config, marker_sequence)
         config.stash[_MARKER_SEQUENCE_KEY] = tuple(marker_sequence)
         config.option.maxfail = 1
 
-    configured_loggers = config.getini("muted_loggers")
-    cli_loggers = config.getoption("mute_logger", default=[])
-    for logger_name in {*configured_loggers, *cli_loggers}:
-        logging.getLogger(logger_name).setLevel(_MUTED_LOG_LEVEL)
-
-    run_id = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S_%f")
-    run_dir = config.rootpath / "artifacts" / run_id
+    supplied_id = config.getoption("run_id", default=None)
+    run_id = (
+        supplied_id
+        if supplied_id is not None
+        else datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S_%f")
+    )
+    if _RUN_ID_PATTERN.fullmatch(run_id) is None:
+        raise pytest.UsageError(
+            "Invalid --run-id: use 1-128 ASCII letters, digits, dots, underscores or hyphens, "
+            "starting with a letter or digit"
+        )
+    configured_root = config.getoption("artifacts_root", default=None)
+    root = (config.rootpath / (configured_root or Path("artifacts"))).resolve()
+    run_dir = root / run_id
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        if run_dir.resolve().parent != root:
+            raise pytest.UsageError("Session directory must stay within the artifacts root")
+        run_dir.mkdir(exist_ok=False)
+    except OSError as error:
+        raise pytest.UsageError(
+            f"Cannot create new session directory '{run_dir}': {error}"
+        ) from error
     config.stash[_RUN_DIRECTORY_KEY] = run_dir
-    reports_dir = run_dir / "reports"
-    reports_dir.mkdir(parents=True, exist_ok=False)
-    log_path = run_dir / "pytest.log"
-    log_path.touch(exist_ok=False)
-    latest_candidate = run_dir / ".latest.log"
-    latest_candidate.hardlink_to(log_path)
-    latest_candidate.replace(config.rootpath / "artifacts" / "latest.log")
-    config.option.log_file = str(log_path)
-    config.option.xmlpath = reports_dir / "junit.xml"
-    config.option.htmlpath = reports_dir / "report.html"
-    config.option.self_contained_html = True
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
@@ -107,75 +107,58 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 def pytest_runtest_makereport(
     item: pytest.Item,
 ) -> Generator[None, pytest.TestReport, pytest.TestReport]:
-    """Log failed test phases and stop the session when requested."""
+    """Stop the session after failure when requested by the test marker."""
     report = yield
-    if report.failed:
-        logger.error(
-            "Test failed: %s [%s]\n%s",
-            item.nodeid,
-            report.when,
-            report.longreprtext,
-        )
     if report.failed and item.get_closest_marker("stop_on_fail") is not None:
         item.session.shouldstop = f"stopping after failure in {item.nodeid}"
     return report
 
 
-def pytest_terminal_summary(
-    terminalreporter: pytest.TerminalReporter,
-    exitstatus: pytest.ExitCode,
-) -> None:
-    """Log the test-session result and the node IDs of failed reports."""
-    duration = terminalreporter._session_start.elapsed().seconds
-    lines = [
-        " Test session summary ".center(_SUMMARY_WIDTH, "="),
-        "",
-        f"Total: {_selected_test_count(terminalreporter)}",
-        "",
-        f"Passed: {_summary_count(terminalreporter, 'passed')}",
-        f"Failed: {_summary_count(terminalreporter, 'failed')}",
-        f"Skipped: {_summary_count(terminalreporter, 'skipped')}",
-        f"Errors: {_summary_count(terminalreporter, 'error')}",
-        "",
-        f"Duration: {duration:.2f}s",
-        "",
-        f"Exit code: {int(exitstatus)}",
-    ]
-
-    failed_reports = [
-        report
-        for category in ("failed", "error")
-        for report in terminalreporter.stats.get(category, ())
-        if getattr(report, "count_towards_summary", True)
-    ]
-    if failed_reports:
-        lines.extend(("", "", "Failed tests:"))
-        for report in failed_reports:
-            nodeid = getattr(report, "nodeid", "unknown")
-            phase = getattr(report, "when", None)
-            phase_suffix = f" [{phase}]" if phase not in (None, "call") else ""
-            lines.append(f"  - {nodeid}{phase_suffix}")
-
-    lines.extend(("", "=" * _SUMMARY_WIDTH))
-    logger.info("\n\n\n%s", "\n".join(lines))
-
-
-def _selected_test_count(terminalreporter: pytest.TerminalReporter) -> int:
-    """Return the number of collected tests selected for this session."""
-    return terminalreporter._numcollected - _summary_count(terminalreporter, "deselected")
-
-
-def _summary_count(terminalreporter: pytest.TerminalReporter, category: str) -> int:
-    """Count reports that pytest includes in its terminal summary."""
-    return sum(
-        getattr(report, "count_towards_summary", True)
-        for report in terminalreporter.stats.get(category, ())
-    )
-
-
 def get_run_directory(config: pytest.Config) -> Path:
     """Return the artifact directory allocated for the current pytest session."""
     return config.stash[_RUN_DIRECTORY_KEY]
+
+
+def _git_revision(root: Path) -> str | None:
+    """Return the local checkout revision when Git is available."""
+    git = shutil.which("git")
+    if git is None:
+        return None
+    try:
+        result = subprocess.run(  # noqa: S603 -- fixed read-only Git arguments, no shell
+            [git, "-C", str(root), "rev-parse", "--verify", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+    except OSError, subprocess.TimeoutExpired:
+        return None
+    return result.stdout.strip() or None if result.returncode == 0 else None
+
+
+def get_run_metadata(config: pytest.Config) -> Mapping[str, str]:
+    """Return a copy of run facts, collecting them once after artifact configuration."""
+    if _RUN_METADATA_KEY in config.stash:
+        return config.stash[_RUN_METADATA_KEY].copy()
+    properties = {
+        "run_id": get_run_directory(config).name,
+        "python_version": platform.python_version(),
+        "pytest_version": pytest.__version__,
+        "git_revision": _git_revision(config.rootpath),
+        "stand": config.getoption("stand"),
+        "scenario": config.getoption("scenario"),
+        "marker_sequence": ",".join(config.stash.get(_MARKER_SEQUENCE_KEY, ())),
+    }
+    metadata = {name: value for name, value in properties.items() if value}
+    config.stash[_RUN_METADATA_KEY] = metadata
+    return metadata.copy()
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_sessionstart(session: pytest.Session) -> None:
+    """Collect shared run facts once before test collection."""
+    get_run_metadata(session.config)
 
 
 @pytest.fixture
@@ -190,12 +173,6 @@ def cls_step_logger(request: pytest.FixtureRequest) -> StepLogger:
     """Share step numbering between test methods in one class."""
     logger = logging.getLogger(request.node.name)
     return StepLogger(logger)
-
-
-@pytest.fixture(scope="class", autouse=True)
-def log_test_class(request: pytest.FixtureRequest) -> None:
-    """Log the test class name and description once before its tests."""
-    _log_test_class(request.cls)
 
 
 def _get_marker_sequence(config: pytest.Config) -> list[str]:
@@ -261,14 +238,3 @@ def _apply_marker_sequence(
     if deselected:
         config.hook.pytest_deselected(items=deselected)
     items[:] = [item for marker in marker_sequence for item in grouped[marker]]
-
-
-def _log_test_class(test_class: type[object] | None) -> None:
-    """Log a test class name and its docstring, if the current test belongs to a class."""
-    if test_class is None:
-        return
-
-    logger = logging.getLogger(test_class.__module__)
-    description = getdoc(test_class) or "No description"
-    header = f" {test_class.__name__} ".center(100, "-")
-    logger.info("\n\n\n%s\n%s\n", header, description)

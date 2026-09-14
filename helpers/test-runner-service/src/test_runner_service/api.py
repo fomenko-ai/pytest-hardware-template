@@ -113,12 +113,12 @@ def create_router(
     @router.get("/v1/current/artifacts", response_model=ArtifactList)
     async def artifacts() -> ArtifactList:
         run_directory = _current_artifact_directory(state_store, settings)
-        return list_artifacts(run_directory)
+        return list_artifacts(run_directory, settings)
 
     @router.get("/v1/current/artifacts/{name}", response_class=FileResponse)
     async def artifact(name: str) -> FileResponse:
         run_directory = _current_artifact_directory(state_store, settings)
-        path = resolve_artifact(run_directory, name)
+        path = resolve_artifact(run_directory, settings, name)
         if path is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "artifact not found")
         if name == "report.html":
@@ -127,14 +127,14 @@ def create_router(
 
     @router.get("/v1/artifact-runs", response_model=ArtifactRunList)
     async def artifact_runs() -> ArtifactRunList:
-        return list_artifact_runs(settings.artifacts_directory)
+        return list_artifact_runs(settings)
 
     @router.get("/v1/artifact-runs/{run_id}/{name}", response_class=FileResponse)
     async def historical_artifact(run_id: str, name: str) -> FileResponse:
         run_directory = resolve_run_directory(settings.artifacts_directory, run_id)
         if run_directory is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "artifact run not found")
-        path = resolve_artifact(run_directory, name)
+        path = resolve_artifact(run_directory, settings, name)
         if path is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "artifact not found")
         if name == "report.html":

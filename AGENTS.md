@@ -141,14 +141,19 @@ Follow these constraints:
    justified longer or shorter runtime.
 3. Do not force the timeout method to `thread` without a platform-specific requirement because
    process termination may prevent fixture teardown and hardware cleanup.
-4. Let the project pytest plugin create one `artifacts/<run-id>/` directory containing
-   `pytest.log` and `reports/junit.xml`; tests must not hardcode a run-directory name.
+4. Let the reusable pytest runtime create one `artifacts/<run-id>/` session directory. Let the
+   reporting policy in `tests/conftest.py` place `pytest.log`, `reports/junit.xml`, and
+   `reports/report.html` inside it; tests must not hardcode a run-directory name.
 5. Treat `artifacts/latest.log` only as a stable link to the most recently started session log;
    use a run-specific `pytest.log` when results from parallel sessions must be distinguished.
 6. Treat JUnit XML as the machine-readable test result and `pytest.log` as the human-readable
    diagnostic log.
 7. Keep generated artifacts out of Git and use `./scripts/clean-artifacts.sh` when cleanup is
    required.
+8. Let the external runner correlate an operation with an explicit pytest `run_id` and expected
+   session directory; never infer the session from JUnit, directory timestamps, or artifact scans.
+9. Keep the launched process exit code independent of JUnit parsing and other reporting failures.
+   Configure optional runner report paths relative to the session directory.
 
 ### Docker
 
@@ -212,6 +217,9 @@ Additional requirements:
    replacement instead of deleting them.
 4. Update regular project documentation after accepting a decision so it continues to describe
    the current behavior; a decision record explains why the choice was made.
+5. Before any change to `src/hardware_test/pytest_plugin.py` or `tests/conftest.py`, read and check
+   the proposed change against `docs/decisions/0001-prepare-for-library-publication.md` and
+   `docs/decisions/0002-separate-runtime-and-reporting.md`.
 
 ## Commit Message Rules
 
