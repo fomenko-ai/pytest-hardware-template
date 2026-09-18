@@ -1,8 +1,15 @@
+from enum import StrEnum
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Self
 
 from pydantic import AnyHttpUrl, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+
+class AuthMode(StrEnum):
+    DISABLED = "disabled"
+    LOCAL = "local"
+    KEYCLOAK = "keycloak"
 
 
 class Settings(BaseSettings):
@@ -28,13 +35,22 @@ class Settings(BaseSettings):
     allowed_image_prefixes: Annotated[tuple[str, ...], NoDecode] = ("sha256:",)
     operation_timeout_seconds: int = Field(default=3600, gt=0)
     log_poll_interval_seconds: float = Field(default=0.25, gt=0)
-    auth_enabled: bool = False
+    auth_mode: AuthMode = AuthMode.DISABLED
     auth_username: str | None = None
     auth_password: SecretStr | None = None
     auth_session_secret: SecretStr | None = None
     auth_api_token: SecretStr | None = None
     auth_session_ttl_seconds: int = Field(default=604800, gt=0)
     auth_cookie_secure: bool = False
+    public_url: AnyHttpUrl | None = None
+    oidc_issuer: AnyHttpUrl | None = None
+    oidc_client_id: str | None = None
+    oidc_client_secret: SecretStr | None = None
+    oidc_audience: str | None = None
+    oidc_viewer_role: str = "hardware-test-runner.viewer"
+    oidc_operator_role: str = "hardware-test-runner.operator"
+    oidc_jwks_cache_seconds: int = Field(default=3600, gt=0)
+    oidc_clock_skew_seconds: int = Field(default=30, ge=0)
     allure_enabled: bool = False
     allure_publisher_image: str = "local/allure-publisher:3.17.0"
     allure_access_token: SecretStr | None = None
@@ -79,9 +95,27 @@ class Settings(BaseSettings):
     def empty_allure_public_url_is_unset(cls, value: object) -> object:
         return None if value == "" else value
 
+    @field_validator("public_url", "oidc_issuer", mode="before")
+    @classmethod
+    def empty_authentication_url_is_unset(cls, value: object) -> object:
+        return None if value == "" else value
+
+    @field_validator("public_url", "oidc_issuer")
+    @classmethod
+    def validate_authentication_url(cls, value: AnyHttpUrl | None) -> AnyHttpUrl | None:
+        if value is not None and (
+            value.scheme != "https"
+            or value.username
+            or value.password
+            or value.query
+            or value.fragment
+        ):
+            raise ValueError("authentication URLs must be HTTPS without credentials or query data")
+        return value
+
     @model_validator(mode="after")
-    def validate_authentication_settings(self) -> Settings:
-        if self.auth_enabled:
+    def validate_authentication_settings(self) -> Self:
+        if self.auth_mode is AuthMode.LOCAL:
             required = {
                 "TEST_RUNNER_AUTH_USERNAME": self.auth_username,
                 "TEST_RUNNER_AUTH_PASSWORD": self.auth_password,
@@ -89,7 +123,23 @@ class Settings(BaseSettings):
             }
             missing = [name for name, value in required.items() if not _has_secret_value(value)]
             if missing:
-                raise ValueError(f"authentication requires: {', '.join(missing)}")
+                raise ValueError(f"local authentication requires: {', '.join(missing)}")
+        elif self.auth_mode is AuthMode.KEYCLOAK:
+            required = {
+                "TEST_RUNNER_PUBLIC_URL": self.public_url,
+                "TEST_RUNNER_OIDC_ISSUER": self.oidc_issuer,
+                "TEST_RUNNER_OIDC_CLIENT_ID": self.oidc_client_id,
+                "TEST_RUNNER_OIDC_CLIENT_SECRET": self.oidc_client_secret,
+                "TEST_RUNNER_OIDC_AUDIENCE": self.oidc_audience,
+                "TEST_RUNNER_AUTH_SESSION_SECRET": self.auth_session_secret,
+            }
+            missing = [name for name, value in required.items() if not _has_secret_value(value)]
+            if missing:
+                raise ValueError(f"Keycloak authentication requires: {', '.join(missing)}")
+            if _has_secret_value(self.auth_api_token):
+                raise ValueError(
+                    "TEST_RUNNER_AUTH_API_TOKEN is only supported by local authentication"
+                )
         return self
 
     @model_validator(mode="after")
@@ -137,7 +187,7 @@ class Settings(BaseSettings):
         return self
 
 
-def _has_secret_value(value: str | SecretStr | None) -> bool:
+def _has_secret_value(value: object) -> bool:
     if isinstance(value, SecretStr):
         return bool(value.get_secret_value())
     return bool(value)

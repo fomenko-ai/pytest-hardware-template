@@ -214,8 +214,9 @@
       await request("/v1/current/cancel", {});
     });
     document.querySelector("#logout").addEventListener("click", async () => {
-      await fetch("/auth/logout", {method: "POST"});
-      window.location.replace("/login");
+      const response = await fetch("/auth/logout", {method: "POST"});
+      const result = await response.json();
+      window.location.replace(result.logout_url);
     });
     async function initialize() {
       await configureAuthentication();

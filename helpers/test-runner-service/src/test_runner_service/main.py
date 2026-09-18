@@ -6,10 +6,15 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 
 from test_runner_service.api import create_router
-from test_runner_service.auth import AuthenticationMiddleware, create_auth_router
+from test_runner_service.auth import (
+    AuthenticationMiddleware,
+    create_auth_router,
+    create_authenticator,
+)
 from test_runner_service.docker_commands import DockerCommandBuilder, validate_required_paths
+from test_runner_service.oidc import OidcClient
 from test_runner_service.processes import AsyncioProcessRunner, ProcessRunner
-from test_runner_service.settings import Settings
+from test_runner_service.settings import AuthMode, Settings
 from test_runner_service.state import StateStore
 from test_runner_service.worker import OperationCoordinator
 
@@ -17,6 +22,7 @@ from test_runner_service.worker import OperationCoordinator
 def create_app(
     settings: Settings | None = None,
     process_runner: ProcessRunner | None = None,
+    oidc_client: OidcClient | None = None,
 ) -> FastAPI:
     runtime_settings = settings or Settings()
     state_store = StateStore(runtime_settings.state_directory)
@@ -27,6 +33,10 @@ def create_app(
         DockerCommandBuilder(runtime_settings),
         runner,
     )
+    oidc = oidc_client
+    if runtime_settings.auth_mode is AuthMode.KEYCLOAK and oidc is None:
+        oidc = OidcClient(runtime_settings)
+    authenticator = create_authenticator(runtime_settings, oidc)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
@@ -47,8 +57,12 @@ def create_app(
     static_directory = Path(__file__).parent / "static"
     html = static_directory / "index.html"
     artifact_runs_html = static_directory / "artifact-runs.html"
-    app.include_router(create_auth_router(runtime_settings, static_directory / "login.html"))
-    app.add_middleware(AuthenticationMiddleware, settings=runtime_settings)
+    app.include_router(create_auth_router(runtime_settings, static_directory / "login.html", oidc))
+    app.add_middleware(
+        AuthenticationMiddleware,
+        settings=runtime_settings,
+        authenticator=authenticator,
+    )
 
     @app.get("/", response_class=FileResponse, include_in_schema=False)
     async def index() -> FileResponse:

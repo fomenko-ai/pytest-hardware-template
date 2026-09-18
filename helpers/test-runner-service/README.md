@@ -220,38 +220,14 @@ Docker virtual stand under `helpers/virtual-stand/` uses this setting for local 
 
 ### Authentication
 
-Authentication is disabled by default. To protect the UI, API, event stream, artifacts, and API
-documentation, enable it in the untracked `.env` file. Users are then redirected to the service's
-login page:
+Authentication is disabled by default. Set `TEST_RUNNER_AUTH_MODE=local` for the built-in
+username/password UI and optional static CI token, or `TEST_RUNNER_AUTH_MODE=keycloak` for browser
+SSO and Keycloak JWT authentication of API clients. Keep all secrets in the untracked `.env` file.
 
 ![Hardware Test Runner authentication page](docs/images/authentication-login.png)
 
-Set the following values to configure authentication:
-
-```dotenv
-TEST_RUNNER_AUTH_ENABLED=true
-TEST_RUNNER_AUTH_USERNAME=operator
-TEST_RUNNER_AUTH_PASSWORD=replace-with-a-strong-password
-TEST_RUNNER_AUTH_SESSION_SECRET=replace-with-a-long-random-value
-TEST_RUNNER_AUTH_API_TOKEN=replace-with-an-independent-ci-token
-```
-
-Generate the session secret independently from the password. The service refuses to start when
-authentication is enabled without any required value. After a successful login, it stores a
-signed `HttpOnly`, `SameSite=Strict` session cookie for seven days by default; neither the username
-nor password is stored in the cookie. Configure the lifetime in seconds with
-`TEST_RUNNER_AUTH_SESSION_TTL_SECONDS`. Changing the session secret invalidates all existing
-sessions.
-
-`TEST_RUNNER_AUTH_API_TOKEN` is optional and adds native machine-to-machine authentication for CI
-clients without changing the browser login flow. Send it with the standard `Authorization: Bearer`
-header. Generate it independently from the UI password and session secret. Store it as a masked,
-protected GitLab CI/CD variable or as Jenkins Secret Text, rotate it as needed, and never include it
-in a URL or log output. An unset or empty token disables Bearer authentication.
-
-The default `TEST_RUNNER_AUTH_COOKIE_SECURE=false` supports the documented loopback HTTP setup.
-Set it to `true` whenever TLS terminates at the service-facing URL. The `/health`, `/login`, and
-login/logout endpoints remain public so health checks and authentication continue to work.
+See [Authentication](docs/authentication.md) for the UI and API flows, Keycloak client setup,
+roles, environment variables, CI examples, logout behavior, and security requirements.
 
 The Compose deployment mounts `/var/run/docker.sock`. Docker daemon access is equivalent to
 privileged control of the laboratory host. Deploy only on a dedicated trusted server, bind the HTTP
