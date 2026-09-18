@@ -65,8 +65,52 @@ def test_signed_cookie_authenticates_subsequent_requests(settings: Settings) -> 
     assert rejected.status_code == 401
 
 
+def test_bearer_token_authenticates_api_request(settings: Settings) -> None:
+    protected_settings = _protected_settings(settings, api_token="ci-api-token")  # noqa: S106
+    with TestClient(create_app(protected_settings, FakeProcessRunner())) as client:
+        response = client.get(
+            "/v1/current",
+            headers={"Authorization": "Bearer ci-api-token"},
+        )
+
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "authorization",
+    [
+        "Bearer wrong-token",
+        "Basic ci-api-token",
+        "Bearer",
+        "",
+    ],
+)
+def test_bearer_token_rejects_invalid_authorization(
+    settings: Settings,
+    authorization: str,
+) -> None:
+    protected_settings = _protected_settings(settings, api_token="ci-api-token")  # noqa: S106
+    headers = {"Authorization": authorization} if authorization else {}
+    with TestClient(create_app(protected_settings, FakeProcessRunner())) as client:
+        response = client.get("/v1/current", headers=headers)
+
+    assert response.status_code == 401
+
+
+def test_empty_bearer_token_setting_does_not_authenticate(settings: Settings) -> None:
+    protected_settings = _protected_settings(settings, api_token="")
+    with TestClient(create_app(protected_settings, FakeProcessRunner())) as client:
+        response = client.get(
+            "/v1/current",
+            headers={"Authorization": "Bearer anything"},
+        )
+
+    assert response.status_code == 401
+
+
 def test_health_remains_public_when_authentication_is_enabled(settings: Settings) -> None:
-    with TestClient(create_app(_protected_settings(settings), FakeProcessRunner())) as client:
+    protected_settings = _protected_settings(settings, api_token="ci-api-token")  # noqa: S106
+    with TestClient(create_app(protected_settings, FakeProcessRunner())) as client:
         response = client.get("/health")
         auth_status = client.get("/auth/status")
 
@@ -74,12 +118,13 @@ def test_health_remains_public_when_authentication_is_enabled(settings: Settings
     assert auth_status.json() == {"enabled": True}
 
 
-def _protected_settings(settings: Settings) -> Settings:
+def _protected_settings(settings: Settings, api_token: str | None = None) -> Settings:
     values = settings.model_dump()
     values.update(
         auth_enabled=True,
         auth_username="operator",
         auth_password="secret-password",  # noqa: S106
         auth_session_secret="long-random-session-secret",  # noqa: S106
+        auth_api_token=api_token,
     )
     return Settings.model_validate(values)

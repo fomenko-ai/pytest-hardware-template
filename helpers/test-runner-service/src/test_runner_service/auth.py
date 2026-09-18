@@ -46,6 +46,9 @@ class AuthenticationMiddleware:
         if not self._settings.auth_enabled or scope["path"] in _PUBLIC_PATHS:
             return True
         headers = dict(scope["headers"])
+        authorization = headers.get(b"authorization", b"").decode("latin-1")
+        if _valid_bearer_token(authorization, self._settings):
+            return True
         cookie = _cookie_value(headers.get(b"cookie", b"").decode("latin-1"), SESSION_COOKIE)
         return cookie is not None and _valid_session(cookie, self._settings)
 
@@ -121,6 +124,21 @@ def _valid_session(token: str, settings: Settings) -> bool:
     age = int(time.time()) - issued_at
     return 0 <= age <= settings.auth_session_ttl_seconds and hmac.compare_digest(
         signature, _signature(issued_at_text, settings)
+    )
+
+
+def _valid_bearer_token(authorization: str, settings: Settings) -> bool:
+    configured_token = settings.auth_api_token
+    if configured_token is None:
+        return False
+    scheme, separator, token = authorization.partition(" ")
+    expected = configured_token.get_secret_value()
+    return (
+        bool(separator)
+        and scheme.casefold() == "bearer"
+        and bool(token)
+        and bool(expected)
+        and hmac.compare_digest(token.encode(), expected.encode())
     )
 
 

@@ -233,6 +233,7 @@ TEST_RUNNER_AUTH_ENABLED=true
 TEST_RUNNER_AUTH_USERNAME=operator
 TEST_RUNNER_AUTH_PASSWORD=replace-with-a-strong-password
 TEST_RUNNER_AUTH_SESSION_SECRET=replace-with-a-long-random-value
+TEST_RUNNER_AUTH_API_TOKEN=replace-with-an-independent-ci-token
 ```
 
 Generate the session secret independently from the password. The service refuses to start when
@@ -241,6 +242,12 @@ signed `HttpOnly`, `SameSite=Strict` session cookie for seven days by default; n
 nor password is stored in the cookie. Configure the lifetime in seconds with
 `TEST_RUNNER_AUTH_SESSION_TTL_SECONDS`. Changing the session secret invalidates all existing
 sessions.
+
+`TEST_RUNNER_AUTH_API_TOKEN` is optional and adds native machine-to-machine authentication for CI
+clients without changing the browser login flow. Send it with the standard `Authorization: Bearer`
+header. Generate it independently from the UI password and session secret. Store it as a masked,
+protected GitLab CI/CD variable or as Jenkins Secret Text, rotate it as needed, and never include it
+in a URL or log output. An unset or empty token disables Bearer authentication.
 
 The default `TEST_RUNNER_AUTH_COOKIE_SECURE=false` supports the documented loopback HTTP setup.
 Set it to `true` whenever TLS terminates at the service-facing URL. The `/health`, `/login`, and
@@ -296,6 +303,7 @@ Run a prepared immutable image:
 
 ```bash
 curl --request POST http://127.0.0.1:8080/v1/runs \
+  --header "Authorization: Bearer ${TEST_RUNNER_API_TOKEN}" \
   --header 'Content-Type: application/json' \
   --data '{
     "image":"sha256:0123456789abcdef",
@@ -303,6 +311,12 @@ curl --request POST http://127.0.0.1:8080/v1/runs \
     "scenario":"hardware-smoke"
   }'
 ```
+
+The authorization header is required in this example when authentication and the API token are
+configured. Use HTTPS for every request that crosses the loopback or another trusted local
+boundary. The CI variable name may differ from the runner's server-side
+`TEST_RUNNER_AUTH_API_TOKEN`; keeping distinct names avoids accidentally exposing server
+configuration to a job.
 
 Follow current output:
 

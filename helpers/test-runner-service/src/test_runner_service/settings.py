@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     auth_username: str | None = None
     auth_password: SecretStr | None = None
     auth_session_secret: SecretStr | None = None
+    auth_api_token: SecretStr | None = None
     auth_session_ttl_seconds: int = Field(default=604800, gt=0)
     auth_cookie_secure: bool = False
     allure_enabled: bool = False
