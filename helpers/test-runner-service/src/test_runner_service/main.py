@@ -34,7 +34,14 @@ def create_app(
         runner,
     )
     oidc = oidc_client
-    if runtime_settings.auth_mode is AuthMode.KEYCLOAK and oidc is None:
+    if (
+        runtime_settings.auth_mode
+        in {
+            AuthMode.KEYCLOAK,
+            AuthMode.KEYCLOAK_UI_LOCAL_API,
+        }
+        and oidc is None
+    ):
         oidc = OidcClient(runtime_settings)
     authenticator = create_authenticator(runtime_settings, oidc)
 

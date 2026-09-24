@@ -221,8 +221,9 @@ Docker virtual stand under `helpers/virtual-stand/` uses this setting for local 
 ### Authentication
 
 Authentication is disabled by default. Set `TEST_RUNNER_AUTH_MODE=local` for the built-in
-username/password UI and optional static CI token, or `TEST_RUNNER_AUTH_MODE=keycloak` for browser
-SSO and Keycloak JWT authentication of API clients. Keep all secrets in the untracked `.env` file.
+username/password UI and optional static CI token, `keycloak` for browser SSO and Keycloak JWTs,
+or `keycloak_ui_local_api` for Keycloak browser SSO with a static API token. Keep all secrets in
+the untracked `.env` file.
 
 ![Hardware Test Runner authentication page](docs/images/authentication-login.png)
 

@@ -1,15 +1,23 @@
 # Authentication
 
-The test runner supports three mutually exclusive modes:
+The test runner supports four explicit authentication modes:
 
 | Mode | Browser UI | API and CI |
 | --- | --- | --- |
-| `disabled` | No authentication | No authentication |
-| `local` | Local username/password and signed cookie | Optional static Bearer token |
+| `disabled` | UI pages do not require a session | API routes do not require a credential |
+| `local` | Username/password and signed cookie | Static Bearer token |
 | `keycloak` | OpenID Connect SSO and signed runner cookie | Keycloak access token |
+| `keycloak_ui_local_api` | OpenID Connect SSO and signed runner cookie | Static Bearer token |
 
-`/health` and the endpoints needed to start or finish authentication remain public. All other UI,
-API, artifact, event-stream, and OpenAPI routes are protected when authentication is enabled.
+`/health` and the endpoints needed to start or finish browser authentication remain public. A
+valid browser session is accepted by API routes so the UI can call them.
+
+For example, this uses Keycloak SSO for people and an independent static token for CI:
+
+```dotenv
+TEST_RUNNER_AUTH_MODE=keycloak_ui_local_api
+TEST_RUNNER_AUTH_API_TOKEN=replace-with-an-independent-ci-token
+```
 
 ## Local mode
 
@@ -20,22 +28,21 @@ TEST_RUNNER_AUTH_MODE=local
 TEST_RUNNER_AUTH_USERNAME=operator
 TEST_RUNNER_AUTH_PASSWORD=replace-with-a-strong-password
 TEST_RUNNER_AUTH_SESSION_SECRET=replace-with-a-long-random-value
-TEST_RUNNER_AUTH_API_TOKEN=replace-with-an-independent-ci-token
 TEST_RUNNER_AUTH_COOKIE_SECURE=true
 ```
-
-`TEST_RUNNER_AUTH_API_TOKEN` is optional and is accepted only in local mode. Send it as
-`Authorization: Bearer <token>`. Generate the password, session secret, and API token independently.
 
 The browser receives a signed `HttpOnly`, `SameSite=Lax` cookie. Its default lifetime is seven days
 and can be changed with `TEST_RUNNER_AUTH_SESSION_TTL_SECONDS`. Changing the session secret
 invalidates existing sessions.
 
-## Keycloak mode
+`TEST_RUNNER_AUTH_API_TOKEN` is optional in local mode. Send it as
+`Authorization: Bearer <token>`. Generate it independently from browser passwords and session
+secrets.
 
-Keycloak mode uses Authorization Code Flow with PKCE for the browser and locally validated access
-tokens for API clients. It does not accept `TEST_RUNNER_AUTH_API_TOKEN`; configuring that variable
-in Keycloak mode is a startup error.
+## Keycloak authentication
+
+Keycloak mode uses Authorization Code Flow with PKCE for the browser and locally validates access
+tokens for API clients.
 
 ### Browser UI and SSO
 
@@ -128,7 +135,23 @@ TEST_RUNNER_AUTH_COOKIE_SECURE=true
 ```
 
 `TEST_RUNNER_PUBLIC_URL` is authoritative for callback and logout URLs. It must be the externally
-reachable HTTPS origin and must match the Keycloak client configuration.
+reachable origin and match the Keycloak client configuration. HTTP is supported for trusted
+internal stand networks; use HTTPS whenever traffic can leave that controlled network.
+
+## Keycloak UI with local API authentication
+
+Use the hybrid mode when people should sign in through Keycloak while CI clients use a static
+Bearer token:
+
+```dotenv
+TEST_RUNNER_AUTH_MODE=keycloak_ui_local_api
+TEST_RUNNER_AUTH_API_TOKEN=replace-with-an-independent-ci-token
+```
+
+The remaining Keycloak and session settings are the same as in Keycloak mode. Browser requests
+without an `Authorization` header use the signed UI session. On API routes, an explicitly supplied
+`Authorization` header is always validated as the local static token and is never overridden by an
+ambient browser cookie. HTML UI routes accept only the browser session.
 
 ### CI example
 

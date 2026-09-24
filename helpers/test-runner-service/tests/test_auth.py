@@ -29,6 +29,20 @@ def test_authentication_requires_complete_configuration(settings: Settings) -> N
         Settings.model_validate(values)
 
 
+def test_public_url_allows_http_but_oidc_issuer_requires_https(settings: Settings) -> None:
+    values = settings.model_dump()
+    values.update(_keycloak_values())
+    values["public_url"] = "http://runner.internal"
+
+    configured = Settings.model_validate(values)
+
+    assert str(configured.public_url) == "http://runner.internal/"
+
+    values["oidc_issuer"] = "http://sso.internal/realms/engineering"
+    with pytest.raises(ValidationError, match="OIDC issuer must be HTTPS"):
+        Settings.model_validate(values)
+
+
 def test_authentication_rejects_invalid_credentials(settings: Settings) -> None:
     protected_settings = _protected_settings(settings)
     with TestClient(create_app(protected_settings, FakeProcessRunner())) as client:
@@ -133,7 +147,15 @@ def test_keycloak_configuration_requires_all_values_and_rejects_static_token(
 
     values.update(_keycloak_values())
     values["auth_api_token"] = "legacy-token"  # noqa: S105
-    with pytest.raises(ValidationError, match="only supported by local"):
+    with pytest.raises(ValidationError, match="only supported by local or hybrid"):
+        Settings.model_validate(values)
+
+
+def test_hybrid_configuration_requires_static_api_token(settings: Settings) -> None:
+    values = settings.model_dump()
+    values.update(_keycloak_values(AuthMode.KEYCLOAK_UI_LOCAL_API))
+
+    with pytest.raises(ValidationError, match="TEST_RUNNER_AUTH_API_TOKEN"):
         Settings.model_validate(values)
 
 
@@ -184,6 +206,52 @@ def test_keycloak_rejects_invalid_bearer(settings: Settings) -> None:
     assert response.headers["www-authenticate"] == "Bearer"
 
 
+def test_keycloak_ui_session_and_local_api_token_are_independent(settings: Settings) -> None:
+    values = settings.model_dump()
+    values.update(_keycloak_values(AuthMode.KEYCLOAK_UI_LOCAL_API))
+    values["auth_api_token"] = "ci-api-token"  # noqa: S105
+    hybrid_settings = Settings.model_validate(values)
+    oidc = FakeOidcClient(role=hybrid_settings.oidc_viewer_role)
+
+    with TestClient(create_app(hybrid_settings, FakeProcessRunner(), oidc)) as client:
+        login = client.get("/login", follow_redirects=False)
+        state = parse_qs(urlparse(login.headers["location"]).query)["state"][0]
+        callback = client.get(
+            "/auth/callback",
+            params={"code": "authorization-code", "state": state},
+            follow_redirects=False,
+        )
+        browser_api = client.get("/v1/current")
+        browser_forbidden = client.post("/v1/current/cancel")
+        local_api = client.get(
+            "/v1/current",
+            headers={"Authorization": "Bearer ci-api-token"},
+        )
+        local_operator = client.post(
+            "/v1/current/cancel",
+            headers={"Authorization": "Bearer ci-api-token"},
+        )
+        invalid_explicit_token = client.get(
+            "/v1/current",
+            headers={"Authorization": "Bearer wrong-token"},
+        )
+        client.cookies.clear()
+        token_cannot_open_ui = client.get(
+            "/",
+            headers={"Authorization": "Bearer ci-api-token"},
+            follow_redirects=False,
+        )
+
+    assert callback.status_code == 303
+    assert browser_api.status_code == 200
+    assert browser_forbidden.status_code == 403
+    assert local_api.status_code == 200
+    assert local_operator.status_code == 409
+    assert invalid_explicit_token.status_code == 401
+    assert token_cannot_open_ui.status_code == 303
+    assert token_cannot_open_ui.headers["location"] == "/login"
+
+
 def _protected_settings(settings: Settings, api_token: str | None = None) -> Settings:
     values = settings.model_dump()
     values.update(
@@ -202,9 +270,9 @@ def _keycloak_settings(settings: Settings) -> Settings:
     return Settings.model_validate(values)
 
 
-def _keycloak_values() -> dict[str, object]:
+def _keycloak_values(mode: AuthMode = AuthMode.KEYCLOAK) -> dict[str, object]:
     return {
-        "auth_mode": AuthMode.KEYCLOAK,
+        "auth_mode": mode,
         "public_url": "https://runner.example",
         "oidc_issuer": "https://sso.example/realms/engineering",
         "oidc_client_id": "hardware-test-runner",

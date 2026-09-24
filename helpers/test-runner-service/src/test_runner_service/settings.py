@@ -10,6 +10,7 @@ class AuthMode(StrEnum):
     DISABLED = "disabled"
     LOCAL = "local"
     KEYCLOAK = "keycloak"
+    KEYCLOAK_UI_LOCAL_API = "keycloak_ui_local_api"
 
 
 class Settings(BaseSettings):
@@ -100,9 +101,18 @@ class Settings(BaseSettings):
     def empty_authentication_url_is_unset(cls, value: object) -> object:
         return None if value == "" else value
 
-    @field_validator("public_url", "oidc_issuer")
+    @field_validator("public_url")
     @classmethod
-    def validate_authentication_url(cls, value: AnyHttpUrl | None) -> AnyHttpUrl | None:
+    def validate_public_url(cls, value: AnyHttpUrl | None) -> AnyHttpUrl | None:
+        if value is not None and (
+            value.username or value.password or value.query or value.fragment
+        ):
+            raise ValueError("public URL must not contain credentials, query, or fragment")
+        return value
+
+    @field_validator("oidc_issuer")
+    @classmethod
+    def validate_oidc_issuer(cls, value: AnyHttpUrl | None) -> AnyHttpUrl | None:
         if value is not None and (
             value.scheme != "https"
             or value.username
@@ -110,7 +120,7 @@ class Settings(BaseSettings):
             or value.query
             or value.fragment
         ):
-            raise ValueError("authentication URLs must be HTTPS without credentials or query data")
+            raise ValueError("OIDC issuer must be HTTPS without credentials, query, or fragment")
         return value
 
     @model_validator(mode="after")
@@ -124,7 +134,7 @@ class Settings(BaseSettings):
             missing = [name for name, value in required.items() if not _has_secret_value(value)]
             if missing:
                 raise ValueError(f"local authentication requires: {', '.join(missing)}")
-        elif self.auth_mode is AuthMode.KEYCLOAK:
+        elif self.auth_mode in {AuthMode.KEYCLOAK, AuthMode.KEYCLOAK_UI_LOCAL_API}:
             required = {
                 "TEST_RUNNER_PUBLIC_URL": self.public_url,
                 "TEST_RUNNER_OIDC_ISSUER": self.oidc_issuer,
@@ -136,10 +146,14 @@ class Settings(BaseSettings):
             missing = [name for name, value in required.items() if not _has_secret_value(value)]
             if missing:
                 raise ValueError(f"Keycloak authentication requires: {', '.join(missing)}")
-            if _has_secret_value(self.auth_api_token):
+            if self.auth_mode is AuthMode.KEYCLOAK and _has_secret_value(self.auth_api_token):
                 raise ValueError(
-                    "TEST_RUNNER_AUTH_API_TOKEN is only supported by local authentication"
+                    "TEST_RUNNER_AUTH_API_TOKEN is only supported by local or hybrid authentication"
                 )
+            if self.auth_mode is AuthMode.KEYCLOAK_UI_LOCAL_API and not _has_secret_value(
+                self.auth_api_token
+            ):
+                raise ValueError("hybrid authentication requires: TEST_RUNNER_AUTH_API_TOKEN")
         return self
 
     @model_validator(mode="after")

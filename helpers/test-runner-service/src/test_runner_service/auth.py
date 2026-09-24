@@ -44,7 +44,7 @@ class Authenticator(Protocol):
 class DisabledAuthenticator:
     async def authenticate(self, scope: Scope) -> Principal | None:
         del scope
-        return Principal("anonymous", None, ("viewer", "operator"), "disabled")
+        return _disabled_principal()
 
 
 class LocalAuthenticator:
@@ -55,7 +55,7 @@ class LocalAuthenticator:
         headers = dict(scope["headers"])
         authorization = headers.get(b"authorization", b"").decode("latin-1")
         if _valid_static_bearer_token(authorization, self._settings):
-            return Principal("local-api-token", None, ("viewer", "operator"), "api_token")
+            return _local_api_principal()
         cookie = _cookie_value(headers.get(b"cookie", b"").decode("latin-1"), SESSION_COOKIE)
         return _decode_session(cookie, self._settings) if cookie is not None else None
 
@@ -76,6 +76,24 @@ class KeycloakAuthenticator:
                 return None
             return _principal_from_claims(claims, self._settings, "oidc_bearer")
         cookie = _cookie_value(headers.get(b"cookie", b"").decode("latin-1"), SESSION_COOKIE)
+        return _decode_session(cookie, self._settings) if cookie is not None else None
+
+
+class KeycloakUILocalAPIAuthenticator:
+    def __init__(self, settings: Settings) -> None:
+        self._settings = settings
+
+    async def authenticate(self, scope: Scope) -> Principal | None:
+        headers = dict(scope["headers"])
+        cookie = _cookie_value(headers.get(b"cookie", b"").decode("latin-1"), SESSION_COOKIE)
+        if _is_ui_page(scope):
+            return _decode_session(cookie, self._settings) if cookie is not None else None
+
+        authorization = headers.get(b"authorization", b"").decode("latin-1")
+        if authorization:
+            if _valid_static_bearer_token(authorization, self._settings):
+                return _local_api_principal()
+            return None
         return _decode_session(cookie, self._settings) if cookie is not None else None
 
 
@@ -127,6 +145,8 @@ def create_authenticator(settings: Settings, oidc: OidcClient | None) -> Authent
         return LocalAuthenticator(settings)
     if oidc is None:
         raise RuntimeError("Keycloak authentication requires an OIDC client")
+    if settings.auth_mode is AuthMode.KEYCLOAK_UI_LOCAL_API:
+        return KeycloakUILocalAPIAuthenticator(settings)
     return KeycloakAuthenticator(settings, oidc)
 
 
@@ -135,7 +155,10 @@ def create_auth_router(settings: Settings, login_html: Path, oidc: OidcClient | 
 
     @router.get("/auth/status", include_in_schema=False)
     async def auth_status() -> dict[str, object]:
-        return {"enabled": settings.auth_mode is not AuthMode.DISABLED, "mode": settings.auth_mode}
+        return {
+            "enabled": settings.auth_mode is not AuthMode.DISABLED,
+            "mode": settings.auth_mode,
+        }
 
     @router.get("/login", response_class=FileResponse, include_in_schema=False)
     async def login_page() -> Response:
@@ -188,7 +211,7 @@ def create_auth_router(settings: Settings, login_html: Path, oidc: OidcClient | 
         state: str = Query(min_length=1),
         transaction_cookie: str | None = Cookie(default=None, alias=OIDC_TRANSACTION_COOKIE),
     ) -> Response:
-        if settings.auth_mode is not AuthMode.KEYCLOAK or oidc is None:
+        if not _uses_keycloak_ui(settings) or oidc is None:
             return JSONResponse({"detail": "not found"}, status_code=status.HTTP_404_NOT_FOUND)
         transaction = _decode_signed(transaction_cookie, settings, max_age=600)
         if transaction is None or not hmac.compare_digest(str(transaction.get("state", "")), state):
@@ -218,7 +241,7 @@ def create_auth_router(settings: Settings, login_html: Path, oidc: OidcClient | 
     @router.post("/auth/logout", include_in_schema=False)
     async def logout() -> JSONResponse:
         logout_url = "/login"
-        if settings.auth_mode is AuthMode.KEYCLOAK and oidc is not None:
+        if _uses_keycloak_ui(settings) and oidc is not None:
             public_url = settings.public_url
             if public_url is None:
                 raise RuntimeError("Keycloak settings were not validated")
@@ -325,6 +348,22 @@ def _required_role(scope: Scope) -> str | None:
     if not scope["path"].startswith("/v1/"):
         return "viewer"
     return "operator" if scope["method"] in {"POST", "PUT", "PATCH", "DELETE"} else "viewer"
+
+
+def _is_ui_page(scope: Scope) -> bool:
+    return scope["path"] in {"/", "/artifact-runs"}
+
+
+def _uses_keycloak_ui(settings: Settings) -> bool:
+    return settings.auth_mode in {AuthMode.KEYCLOAK, AuthMode.KEYCLOAK_UI_LOCAL_API}
+
+
+def _disabled_principal() -> Principal:
+    return Principal("anonymous", None, ("viewer", "operator"), "disabled")
+
+
+def _local_api_principal() -> Principal:
+    return Principal("local-api-token", None, ("viewer", "operator"), "api_token")
 
 
 def _has_role(principal: Principal, role: str, settings: Settings) -> bool:
