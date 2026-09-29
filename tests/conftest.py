@@ -1,9 +1,14 @@
 """Project reporting policy and shared framework-test fixtures."""
 
 import logging
+import os
 from collections.abc import Callable, Generator
 from inspect import getdoc
 from pathlib import Path
+
+# Disable ReportPortal usage analytics / Google Analytics.
+# Security requirement: test execution must not send ReportPortal telemetry to third parties.
+os.environ.setdefault("AGENT_NO_ANALYTICS", "1")
 
 import pytest
 

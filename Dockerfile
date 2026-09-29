@@ -1,7 +1,10 @@
 FROM ghcr.io/astral-sh/uv:0.12.5-python3.14-trixie-slim
 
+# Disable ReportPortal usage analytics / Google Analytics.
+# Security requirement: test execution must not send ReportPortal telemetry to third parties.
 ENV UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy
+    UV_LINK_MODE=copy \
+    AGENT_NO_ANALYTICS=1
 
 WORKDIR /app
 

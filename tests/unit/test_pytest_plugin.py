@@ -1,7 +1,9 @@
 """Tests for shared pytest plugin configuration."""
 
 import logging
+import os
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -18,6 +20,40 @@ from tests.conftest import pytest_configure as configure_reports
 from tests.conftest import pytest_runtest_makereport as report_failure
 
 pytest_plugins = ["pytester"]
+
+
+@pytest.mark.parametrize(("configured", "expected"), [(None, "1"), ("custom", "custom")])
+def test_project_conftest_disables_reportportal_analytics_by_default(
+    tmp_path: Path,
+    configured: str | None,
+    expected: str,
+) -> None:
+    environment = os.environ.copy()
+    if configured is None:
+        environment.pop("AGENT_NO_ANALYTICS", None)
+    else:
+        environment["AGENT_NO_ANALYTICS"] = configured
+
+    artifacts = tmp_path / "artifacts"
+    script = (
+        "import os; import pytest; "
+        "result = pytest.main(["
+        "'--collect-only', 'tests/unit/test_command_models.py', "
+        f"'--artifacts-root', {str(artifacts)!r}, '--run-id', 'analytics-check']); "
+        "assert result == pytest.ExitCode.OK; "
+        f"assert os.environ.get('AGENT_NO_ANALYTICS') == {expected!r}"
+    )
+    result = subprocess.run(  # noqa: S603 - fixed interpreter and test-owned script
+        [sys.executable, "-c", script],
+        cwd=Path(__file__).resolve().parents[2],
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_git_revision_is_optional_when_git_is_missing(tmp_path: Path) -> None:

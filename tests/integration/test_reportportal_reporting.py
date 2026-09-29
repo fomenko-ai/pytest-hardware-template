@@ -49,6 +49,7 @@ def test_reportportal_keeps_local_artifacts_and_reports_test_lifecycle(
 from unittest.mock import MagicMock, patch
 from pathlib import Path
 import xml.etree.ElementTree as ET
+import os
 import pytest
 
 pytest.register_assert_rewrite("pytest_reportportal")
@@ -56,8 +57,13 @@ client = MagicMock()
 client.get_project_settings.return_value = {}
 client.start_launch.return_value = "fake-launch"
 client.start_test_item.side_effect = [f"item-{i}" for i in range(50)]
+
+def create_client(*args, **kwargs):
+    assert os.environ.get("AGENT_NO_ANALYTICS")
+    return client
+
 with (
-    patch("pytest_reportportal.service.create_client", return_value=client) as factory,
+    patch("pytest_reportportal.service.create_client", side_effect=create_client) as factory,
     patch("reportportal_client.logs.current", return_value=client),
     patch("socket.socket.connect", side_effect=AssertionError("network is forbidden")),
 ):
@@ -101,7 +107,7 @@ assert any("reporting integration step" in str(call) for call in client.log.call
         key: value
         for key, value in os.environ.items()
         if not key.startswith("RP_")
-        and key not in {"PYTEST_ADDOPTS", "PYTEST_DISABLE_PLUGIN_AUTOLOAD"}
+        and key not in {"AGENT_NO_ANALYTICS", "PYTEST_ADDOPTS", "PYTEST_DISABLE_PLUGIN_AUTOLOAD"}
     }
     environment["RP_API_KEY"] = "fake-key-must-not-be-logged"
     if attribute_source == "environment":

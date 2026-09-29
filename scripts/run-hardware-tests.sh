@@ -156,6 +156,9 @@ declare -a DOCKER_ARGS=(
     run
     --rm
     --pull "${PULL_POLICY}"
+    # Disable ReportPortal usage analytics / Google Analytics. Test execution must not send
+    # ReportPortal telemetry to third-party analytics services.
+    --env "AGENT_NO_ANALYTICS=${AGENT_NO_ANALYTICS:-1}"
     --volume "${INVENTORY_DIRECTORY}:/runtime/inventory:ro"
     --volume "${ARTIFACTS}:/app/artifacts"
 )

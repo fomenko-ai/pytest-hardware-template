@@ -395,6 +395,12 @@ uv run --group reportportal pytest tests/unit tests/integration \
 unset RP_API_KEY
 ```
 
+ReportPortal usage analytics to Google Analytics are disabled by default with
+`AGENT_NO_ANALYTICS=1`. The project's root test configuration sets this value before ReportPortal
+creates its client, and the Docker, CI, hardware launcher, and Test Runner execution paths also set
+it at their process boundaries. This security default does not depend on creating a local `.env`
+file and does not disable ReportPortal result reporting.
+
 The independently deployable `helpers/reportportal/` stack includes pinned Docker Compose
 services and instructions for local and server installation.
 See [the ReportPortal guide](helpers/reportportal/README.md) for API-key setup, Test Runner

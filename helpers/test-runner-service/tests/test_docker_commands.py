@@ -42,6 +42,8 @@ def test_run_command_matches_framework_runtime_contract(settings: Settings) -> N
         "test-runner.operation-id=run-123",
         "--pull",
         "never",
+        "--env",
+        "AGENT_NO_ANALYTICS=1",
         "--volume",
         f"{settings.inventory_file.parent}:/runtime/inventory:ro",
         "--volume",

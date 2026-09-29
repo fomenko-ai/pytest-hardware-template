@@ -95,6 +95,8 @@ def test_launcher_constructs_isolated_docker_run(
         "--rm",
         "--pull",
         "never",
+        "--env",
+        "AGENT_NO_ANALYTICS=1",
         "--volume",
         f"{inventory_directory}:/runtime/inventory:ro",
         "--volume",

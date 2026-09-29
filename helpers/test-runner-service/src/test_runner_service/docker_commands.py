@@ -67,6 +67,10 @@ class DockerCommandBuilder:
             f"test-runner.operation-id={operation_id}",
             "--pull",
             "never",
+            # Disable ReportPortal usage analytics / Google Analytics. Test execution must not
+            # send ReportPortal telemetry to third-party analytics services.
+            "--env",
+            "AGENT_NO_ANALYTICS=1",
             "--volume",
             f"{inventory_directory}:/runtime/inventory:ro",
             "--volume",
