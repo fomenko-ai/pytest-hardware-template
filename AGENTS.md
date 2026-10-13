@@ -187,11 +187,13 @@ Additional requirements:
 1. Run `uv lock` after dependency metadata changes and verify `uv sync --locked` succeeds.
 2. Run ShellCheck through pre-commit for shell script changes.
 3. Run the relevant YAML-parametrized test with `-vv` after changing its models or YAML cases.
-4. If a pre-commit hook modifies files, accept the intended changes, stage them, and repeat the
+4. After any change under `helpers/`, run `uv run pytest` from each changed helper's directory
+   when that helper has internal tests.
+5. If a pre-commit hook modifies files, accept the intended changes, stage them, and repeat the
    hooks until a second run passes without changes.
-5. Do not report success when a required check was skipped or failed. State the exact reason when
+6. Do not report success when a required check was skipped or failed. State the exact reason when
    a check cannot be run.
-6. Never include hardware tests in the ordinary pre-commit or CI quality gate.
+7. Never include hardware tests in the ordinary pre-commit or CI quality gate.
 
 ## Agent Work Records
 

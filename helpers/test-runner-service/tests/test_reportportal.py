@@ -1,5 +1,6 @@
 import asyncio
 import json
+from itertools import pairwise
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -47,7 +48,7 @@ def test_reportportal_commands_and_api_keep_secrets_server_side(
     assert "--reportportal" in command
     assert command[command.index("--rp-launch") + 1] == "run-1"
     assert command[command.index("--rp-endpoint") + 1] == "https://internal.example/rp"
-    assert command[command.index("--env") + 1] == "RP_API_KEY"
+    assert ("--env", "RP_API_KEY") in pairwise(command)
     assert "fake-reporting-key" not in " ".join(command)
     assert "fake-reporting-key" not in repr(configured)
     with TestClient(create_app(configured, FakeProcessRunner())) as client:
