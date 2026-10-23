@@ -29,6 +29,7 @@ def load_inventory[DeviceConfigT](
     path: Path,
     *,
     device_inventory_adapter: TypeAdapter[DeviceInventory[DeviceConfigT]],
+    inventory_adapter: TypeAdapter[Inventory[DeviceConfigT]],
 ) -> Inventory[DeviceConfigT]: ...
 
 
@@ -36,16 +37,22 @@ def load_inventory[DeviceConfigT](
     path: Path,
     *,
     device_inventory_adapter: TypeAdapter[DeviceInventory[DeviceConfigT]] | None = None,
+    inventory_adapter: TypeAdapter[Inventory[DeviceConfigT]] | None = None,
 ) -> Inventory[DeviceConfigT] | Inventory:
     """Load explicit sources, optionally validating a project device schema."""
-    if device_inventory_adapter is None:
-        return _load_inventory(path, TypeAdapter(DeviceInventory))
-    return _load_inventory(path, device_inventory_adapter)
+    if device_inventory_adapter is None and inventory_adapter is None:
+        return _load_inventory(path, TypeAdapter(DeviceInventory), TypeAdapter(Inventory))
+    if device_inventory_adapter is None or inventory_adapter is None:
+        raise TypeError(
+            "Custom inventory loading requires both device_inventory_adapter and inventory_adapter"
+        )
+    return _load_inventory(path, device_inventory_adapter, inventory_adapter)
 
 
 def _load_inventory[DeviceConfigT](
     path: Path,
     adapter: TypeAdapter[DeviceInventory[DeviceConfigT]],
+    inventory_adapter: TypeAdapter[Inventory[DeviceConfigT]],
 ) -> Inventory[DeviceConfigT]:
     """Load stand and physical-device sources into one validated inventory."""
     try:
@@ -70,10 +77,12 @@ def _load_inventory[DeviceConfigT](
             devices.update(device_inventory.devices)
             device_sources.update(dict.fromkeys(device_inventory.devices, devices_path))
 
-        return Inventory[DeviceConfigT](
-            version=stand_inventory.version,
-            devices=devices,
-            stands=stand_inventory.stands,
+        return inventory_adapter.validate_python(
+            {
+                "version": stand_inventory.version,
+                "devices": devices,
+                "stands": stand_inventory.stands,
+            }
         )
     except ValidationError as error:
         raise InventoryError(f"Invalid inventory '{path}': {error}") from error

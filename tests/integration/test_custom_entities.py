@@ -1,10 +1,14 @@
 """Exercise the documented project extension with fake clients only."""
 
+import logging
 import os
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from textwrap import dedent
+from traceback import format_exception
+from typing import Literal
 
 import pytest
 import yaml
@@ -28,24 +32,37 @@ from hardware_test.exceptions import (
     FactoryError,
     InventoryError,
     TransportError,
+    TransportTimeoutError,
     UnsupportedCommandError,
 )
-from hardware_test.inventory import get_stand, load_inventory
+from hardware_test.factory import BuiltinDeviceFactory, StandFactory
+from hardware_test.inventory import TransportConfig, get_stand, load_inventory
 from hardware_test.models import BinaryCommand, CommandResult, TextCommand
 from hardware_test.settings import SshCredentialSettings
-from hardware_test.transport import SshConnectionConfig
+from hardware_test.transport import LockableTransport, SshConnectionConfig
 from tests.fakes import FakeTransport
 
 
 class FakeConsoleClient:
     """Record adapter inputs and emulate a meter without any sockets."""
 
-    def __init__(self, *, fail_connect: bool = False, fail_execute: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        fail_connect: bool = False,
+        fail_execute: bool = False,
+        connect_error: OSError | None = None,
+        execute_error: OSError | None = None,
+        close_error: OSError | None = None,
+    ) -> None:
         self.connection: tuple[str, int, str, SecretStr, float] | None = None
         self.commands: list[tuple[str, float]] = []
         self.close_count = 0
         self.fail_connect = fail_connect
         self.fail_execute = fail_execute
+        self.connect_error = connect_error
+        self.execute_error = execute_error
+        self.close_error = close_error
 
     def connect(
         self,
@@ -57,17 +74,23 @@ class FakeConsoleClient:
         timeout: float,
     ) -> None:
         self.connection = host, port, username, password, timeout
+        if self.connect_error is not None:
+            raise self.connect_error
         if self.fail_connect:
             raise OSError("fake connection failed")
 
     def execute(self, query: str, *, timeout: float) -> CommandResult:
         self.commands.append((query, timeout))
+        if self.execute_error is not None:
+            raise self.execute_error
         if self.fail_execute:
             raise OSError("fake command failed")
         return CommandResult(stdout="3.3", stderr="", exit_code=0)
 
     def close(self) -> None:
         self.close_count += 1
+        if self.close_error is not None:
+            raise self.close_error
 
 
 def _settings() -> ProjectSettings:
@@ -125,8 +148,13 @@ def _write_inventory(tmp_path: Path, device: dict[str, object]) -> Path:
 
 @pytest.mark.parametrize("device_type", ["dut", "custom_meter"])
 @pytest.mark.parametrize("transport_type", ["ssh", "tcp_console"])
+@pytest.mark.parametrize("roundtrip", [False, True])
 def test_all_device_transport_combinations(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, device_type: str, transport_type: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    device_type: str,
+    transport_type: str,
+    roundtrip: bool,
 ) -> None:
     """Use real schema and factory dispatch, replacing only I/O implementations."""
     ssh_transports: list[FakeTransport] = []
@@ -152,6 +180,8 @@ def test_all_device_transport_combinations(
     inventory = load_project_inventory(
         _write_inventory(tmp_path, _device_data(device_type, transport_type))
     )
+    if roundtrip:
+        inventory = type(inventory).model_validate_json(inventory.model_dump_json())
     factory = build_stand_factory(_settings(), client_factory=client_factory)
     stand = factory.create(inventory, get_stand(inventory, "example"))
     assert stand.devices["reference_meter"] is stand.devices["alias"]
@@ -191,6 +221,48 @@ def test_project_schema_is_required_for_custom_inventory(tmp_path: Path) -> None
     path = _write_inventory(tmp_path, _device_data("custom_meter", "tcp_console"))
     with pytest.raises(InventoryError, match="Invalid inventory"):
         load_inventory(path)
+
+
+def test_standard_restored_inventory_creates_stand_with_fake_transport(tmp_path: Path) -> None:
+    class FakeTransportFactory:
+        def create(self, config: TransportConfig) -> LockableTransport:
+            return FakeTransport()
+
+    inventory = load_inventory(_write_inventory(tmp_path, _device_data("dut", "ssh")))
+    restored = type(inventory).model_validate_json(inventory.model_dump_json())
+    stand = StandFactory(
+        device_factory=BuiltinDeviceFactory(), transport_factory=FakeTransportFactory()
+    ).create(restored, get_stand(restored, "example"))
+
+    stand.connect()
+    try:
+        result = stand.device("reference_meter", Dut).execute_command(TextCommand("status"))
+        assert result.stdout == "ok"
+    finally:
+        stand.close()
+
+
+def test_loaded_custom_inventory_keeps_its_runtime_schema(tmp_path: Path) -> None:
+    inventory = load_project_inventory(
+        _write_inventory(tmp_path, _device_data("custom_meter", "tcp_console"))
+    )
+    restored = type(inventory).model_validate_json(inventory.model_dump_json())
+    config = restored.devices["meter-01"]
+    assert isinstance(config, CustomMeterConfig)
+    assert config.channel == 2
+    assert isinstance(config.transport, TcpConsoleTransportConfig)
+    assert restored.model_dump() == inventory.model_dump()
+    device_schema = inventory.model_json_schema()["properties"]["devices"]
+    assert device_schema["additionalProperties"] is not True
+
+    invalid = inventory.model_dump()
+    invalid["devices"] = {"meter-01": {"unexpected": "invalid device"}}
+    with pytest.raises(ValidationError):
+        type(inventory).model_validate(invalid)
+
+    invalid["devices"] = {"meter-01": _device_data("custom_meter", "unregistered")}
+    with pytest.raises(ValidationError):
+        type(inventory).model_validate(invalid)
 
 
 @pytest.mark.parametrize("invalid", ["device_type", "transport_type", "channel", "secret", "port"])
@@ -313,6 +385,64 @@ def test_failed_connection_closes_previous_and_partial_clients(tmp_path: Path) -
         stand.connect()
 
     assert [client.close_count for client in clients] == [1, 1]
+
+
+@pytest.mark.parametrize("connect_error_type", [OSError, TimeoutError])
+def test_connect_error_remains_primary_when_cleanup_fails(
+    caplog: pytest.LogCaptureFixture, connect_error_type: type[OSError]
+) -> None:
+    client = FakeConsoleClient(
+        connect_error=connect_error_type("fake-connect-secret"),
+        close_error=OSError("fake-cleanup-secret"),
+    )
+    transport = ProjectTransportFactory(_settings(), client_factory=lambda: client).create(
+        TcpConsoleTransportConfig(
+            type="tcp_console", host="192.0.2.30", port=9000, credentials="meter_link"
+        )
+    )
+    caplog.set_level(logging.WARNING, logger="docs.examples.custom_entities")
+    with pytest.raises(TransportError) as caught:
+        transport.connect()
+
+    expected_type = TransportTimeoutError if connect_error_type is TimeoutError else TransportError
+    assert type(caught.value) is expected_type
+    assert str(caught.value) in {
+        "Cannot connect to TCP console",
+        "TCP console connection timed out",
+    }
+    assert client.close_count == 1
+    assert "Cannot close TCP console after connection failure" in caplog.messages
+    diagnostics = caplog.text + "".join(format_exception(caught.value))
+    assert "fake-connect-secret" not in diagnostics
+    assert "fake-cleanup-secret" not in diagnostics
+
+
+@pytest.mark.parametrize("operation", ["connect", "execute", "close"])
+def test_custom_transport_reports_typed_timeouts(
+    operation: Literal["connect", "execute", "close"],
+) -> None:
+    client = FakeConsoleClient(
+        connect_error=TimeoutError("fake-timeout-secret") if operation == "connect" else None,
+        execute_error=TimeoutError("fake-timeout-secret") if operation == "execute" else None,
+        close_error=TimeoutError("fake-timeout-secret") if operation == "close" else None,
+    )
+    transport = ProjectTransportFactory(_settings(), client_factory=lambda: client).create(
+        TcpConsoleTransportConfig(
+            type="tcp_console", host="192.0.2.30", port=9000, credentials="meter_link"
+        )
+    )
+    actions: dict[str, Callable[[], object]] = {
+        "connect": transport.connect,
+        "close": transport.close,
+        "execute": lambda: transport.execute(TextCommand("status")),
+    }
+    action = actions[operation]
+    with pytest.raises(TransportTimeoutError, match="timed out") as caught:
+        action()
+
+    assert "fake-timeout-secret" not in "".join(format_exception(caught.value))
+    if operation == "connect":
+        assert client.close_count == 1
 
 
 def test_connection_is_closed_after_domain_operation_failure(tmp_path: Path) -> None:

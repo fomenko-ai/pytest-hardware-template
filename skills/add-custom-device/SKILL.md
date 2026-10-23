@@ -16,7 +16,9 @@ example is [docs/examples/custom_entities.py](../../docs/examples/custom_entitie
   overrides. Implement the API outside `hardware_test`; the library must not import project code.
 - Define a `DeviceConfig[ProjectTransportConfig]` subclass with a unique literal `type` and strict
   physical-device fields. Extend the project's explicit device union and its
-  `TypeAdapter(DeviceInventory[ProjectDeviceConfig])`. Inherit strict extra-field validation.
+  `TypeAdapter(DeviceInventory[ProjectDeviceConfig])` and `TypeAdapter(Inventory[ProjectDeviceConfig])`.
+  Pass both source and final inventory adapters to the loader with the same concrete device type.
+  Inherit strict extra-field validation.
 - Keep scenario values and expectations out of the device model. Keep credential references in
   inventory and secret values in runtime settings.
 - Build the device through constructor injection of `LockableTransport` and its configuration
@@ -33,7 +35,7 @@ example is [docs/examples/custom_entities.py](../../docs/examples/custom_entitie
 ## Verify and hand off
 
 Follow repository authorization for broad changes and test edits; existing user approval remains
-valid. Verify custom fields survive real YAML loading, the factory selects the domain API, and
-both standard/custom transports work with fake I/O. Connection lifecycle remains in fixtures.
+valid. Verify custom fields survive real YAML loading and JSON restoration, the factory selects
+the domain API, and both standard/custom transports work with fake I/O. Lifecycle stays in fixtures.
 Run the relevant checks and `./scripts/ci.sh`; never run hardware tests implicitly. Update the
 project's guide, skill/example references if affected, and work record with actual results.

@@ -198,9 +198,10 @@ The concrete example is in [CustomMeter](examples/custom_entities.py).
 `TcpConsoleTransport` implements `Transport`: `connect`, `close`, and `execute`. Its internal
 client adapter encapsulates the chosen wire protocol/library. It rejects incompatible command
 types, uses explicit command timeouts or the runtime default, and translates client errors to
-transport exceptions without exposing credentials. Connection setup must clean up partial
-resources on failure. `connect` and `close` must support repeated lifecycle calls; the real
-client adapter in a downstream project must provide that behavior.
+transport exceptions without exposing credentials. Timeouts become `TransportTimeoutError`.
+Connection setup cleans up partial resources on failure; a cleanup error emits a separate safe
+warning while the connection error remains primary. `connect` and `close` must support repeated
+lifecycle calls; the real client adapter in a downstream project must provide that behavior.
 
 See [transport contracts](transports.md) for synchronization and command semantics. The example
 uses an injected fake client in tests; implement and fake the actual client adapter when adding
@@ -251,18 +252,26 @@ constructor table.
 ```python
 from pydantic import TypeAdapter
 
-from hardware_test.inventory import DeviceInventory, get_stand, load_inventory
+from hardware_test.inventory import DeviceInventory, Inventory, get_stand, load_inventory
 
 inventory = load_inventory(
     path,
     device_inventory_adapter=TypeAdapter(DeviceInventory[ProjectDeviceConfig]),
+    inventory_adapter=TypeAdapter(Inventory[ProjectDeviceConfig]),
 )
 stand = factory.create(inventory, get_stand(inventory, "measurement-stand"))
 ```
 
-The return type is `Inventory[ProjectDeviceConfig]`. Custom model instances and fields survive
-merging into the final inventory. Omitting `device_inventory_adapter` selects the original
-built-in schema; a factory alone cannot enable a new YAML type.
+Both adapters use the same concrete `ProjectDeviceConfig`. The first validates every device
+source; the second validates and constructs the final inventory. The return type and runtime
+schema are `Inventory[ProjectDeviceConfig]`. Custom models and fields survive merging and JSON
+restoration through `type(inventory).model_validate_json(inventory.model_dump_json())`; invalid
+device data remains rejected. A generic function's type parameter alone is not a concrete runtime
+schema.
+
+Supply both adapters together for a custom schema. Omitting both selects the original built-in
+schema; a factory alone cannot enable a new YAML type. Custom callers that previously supplied
+only `device_inventory_adapter` must also provide `inventory_adapter`.
 
 `StandFactory` reads the inventory through `InventoryView[ProjectTransportConfig]`, a read-only
 device mapping. It creates one object per physical ID even if several roles reference it.

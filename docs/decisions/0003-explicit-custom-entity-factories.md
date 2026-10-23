@@ -26,9 +26,11 @@ ordinary Python entry points.
 
 Projects define explicit unions of supported transport and device models. Device-specific models
 inherit `DeviceConfig[ProjectTransportConfig]` and retain strict extra-field validation. The
-loader accepts a typed Pydantic adapter for the physical-device inventory schema; that adapter
-validates each explicitly listed source. The loader preserves concrete model instances and
-custom fields when building the combined inventory.
+loader accepts paired typed Pydantic adapters for the physical-device source schema and final
+`Inventory[ConcreteDeviceConfig]`, both using the same concrete device configuration. The source
+adapter validates each explicitly listed file; the final adapter constructs the merged model.
+This preserves concrete model instances, custom fields, runtime validation, and JSON restoration.
+A generic function's type parameter must not be used as the final model's runtime schema.
 
 The shared loader continues to own relative `device_files`, global duplicate-ID detection with
 both source paths, and stand-reference validation. It does not import factories or create objects.

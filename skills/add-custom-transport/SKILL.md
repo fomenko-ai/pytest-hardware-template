@@ -25,14 +25,15 @@ credential composition; its client is a protocol adapter, not a complete TCP imp
 - Implement `Transport.connect`, `close`, and `execute` with the chosen client library encapsulated
   inside the transport module. Accept typed commands and reject unsupported command types.
   Translate client errors without leaking secrets; respect configured and per-command timeouts.
-  Make lifecycle operations repeatable and release partial resources when connection fails.
+  Map timeouts to `TransportTimeoutError`. Make lifecycle operations repeatable, release partial
+  resources when connection fails, and preserve the connection error if cleanup also fails.
 - Extend `ProjectTransportFactory`, receiving settings and client constructors through its
   constructor. Resolve credentials before client construction, return a `SynchronizedTransport`
   around the custom implementation, and delegate built-in models to `create_transport` without
   wrapping its already synchronized result again. Construction must not open connections.
 - Pass the matching transport union to `StandFactory` and its device factory. Ensure pytest uses
-  the project's schema adapter and `stand_factory`; changing factory dispatch alone cannot enable
-  a new inventory type. Do not add global registration or Python class imports from YAML.
+  the project's source/final schema adapters and `stand_factory`; changing dispatch alone cannot
+  enable a new inventory type. Do not add global registration or Python class imports from YAML.
 
 ## Verify and hand off
 

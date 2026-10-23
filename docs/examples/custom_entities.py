@@ -5,6 +5,7 @@ places these definitions in its own package and implements ConsoleClient inside 
 transport module using the chosen client library.
 """
 
+import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Literal, Protocol
@@ -12,13 +13,20 @@ from typing import Annotated, Literal, Protocol
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, TypeAdapter
 
 from hardware_test.devices import Device
-from hardware_test.exceptions import FactoryError, TransportError, UnsupportedCommandError
+from hardware_test.exceptions import (
+    FactoryError,
+    TransportError,
+    TransportTimeoutError,
+    UnsupportedCommandError,
+)
 from hardware_test.factory import StandFactory, create_device, create_transport
 from hardware_test.inventory import DeviceConfig, DeviceInventory, Inventory, TransportConfig
 from hardware_test.inventory import load_inventory as load_builtin_inventory
 from hardware_test.models import Command, CommandResult, TextCommand
 from hardware_test.settings import CredentialSettings, Settings
 from hardware_test.transport import LockableTransport, SynchronizedTransport
+
+logger = logging.getLogger(__name__)
 
 
 class TcpConsoleTransportConfig(BaseModel):
@@ -110,13 +118,24 @@ class TcpConsoleTransport:
                 password=self._credentials.password,
                 timeout=self._settings.connect_timeout,
             )
+        except TimeoutError:
+            self._close_after_failed_connect()
+            raise TransportTimeoutError("TCP console connection timed out") from None
         except OSError:
-            self.close()
+            self._close_after_failed_connect()
             raise TransportError("Cannot connect to TCP console") from None
+
+    def _close_after_failed_connect(self) -> None:
+        try:
+            self.close()
+        except TransportError:
+            logger.warning("Cannot close TCP console after connection failure")
 
     def close(self) -> None:
         try:
             self._client.close()
+        except TimeoutError:
+            raise TransportTimeoutError("TCP console close timed out") from None
         except OSError:
             raise TransportError("Cannot close TCP console") from None
 
@@ -126,6 +145,8 @@ class TcpConsoleTransport:
         timeout = command.timeout if command.timeout is not None else self._settings.command_timeout
         try:
             return self._client.execute(command.text, timeout=timeout)
+        except TimeoutError:
+            raise TransportTimeoutError("TCP console command timed out") from None
         except OSError:
             raise TransportError("TCP console command failed") from None
 
@@ -181,6 +202,7 @@ def load_project_inventory(path: Path) -> Inventory[ProjectDeviceConfig]:
     return load_builtin_inventory(
         path,
         device_inventory_adapter=TypeAdapter(DeviceInventory[ProjectDeviceConfig]),
+        inventory_adapter=TypeAdapter(Inventory[ProjectDeviceConfig]),
     )
 
 

@@ -218,3 +218,5 @@ __marimo__/
 
 artifacts/*/
 artifacts/latest.log
+
+.agent-work/completed/

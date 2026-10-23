@@ -3,10 +3,12 @@
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from hardware_test.exceptions import InventoryError, UnknownStandError
 from hardware_test.inventory import (
     ConsoleSessionInventoryConfig,
+    DeviceConfig,
     Inventory,
     PicocomOverSshTransportConfig,
     PySerialOverSshTransportConfig,
@@ -77,6 +79,30 @@ stands:
     transport = inventory.devices["device-01"].transport
     assert isinstance(transport, SshTransportConfig)
     assert transport.ssh.port == 22
+
+
+def test_loaded_inventory_keeps_its_schema_after_json_roundtrip(tmp_path: Path) -> None:
+    path = tmp_path / "stands.yaml"
+    path.write_text(
+        "version: 1\ndevice_files: [devices.yaml]\n"
+        "stands: {stand-01: {devices: {dut: device-01}}}\n",
+        encoding="utf-8",
+    )
+    _write_device_inventory(tmp_path / "devices.yaml", "device-01", "192.0.2.10")
+    inventory = load_inventory(path)
+
+    restored = type(inventory).model_validate_json(inventory.model_dump_json())
+
+    assert isinstance(restored.devices["device-01"], DeviceConfig)
+    assert isinstance(restored.devices["device-01"].transport, SshTransportConfig)
+    assert restored.model_dump() == inventory.model_dump()
+    device_schema = inventory.model_json_schema()["properties"]["devices"]
+    assert device_schema["additionalProperties"] is not True
+
+    invalid = inventory.model_dump()
+    invalid["devices"] = {"device-01": {"unexpected": "invalid device"}}
+    with pytest.raises(ValidationError):
+        type(inventory).model_validate(invalid)
 
 
 def test_load_inventory_wraps_validation_errors(tmp_path: Path) -> None:
