@@ -1,14 +1,16 @@
 """Inventory model and loader tests."""
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from hardware_test.exceptions import InventoryError, UnknownStandError
 from hardware_test.inventory import (
     ConsoleSessionInventoryConfig,
     DeviceConfig,
+    DeviceInventory,
     Inventory,
     PicocomOverSshTransportConfig,
     PySerialOverSshTransportConfig,
@@ -103,6 +105,34 @@ def test_loaded_inventory_keeps_its_schema_after_json_roundtrip(tmp_path: Path) 
     invalid["devices"] = {"device-01": {"unexpected": "invalid device"}}
     with pytest.raises(ValidationError):
         type(inventory).model_validate(invalid)
+
+
+@pytest.mark.parametrize(
+    "adapters",
+    [
+        pytest.param(
+            {"device_inventory_adapter": TypeAdapter(DeviceInventory)},
+            id="only-device-inventory-adapter",
+        ),
+        pytest.param(
+            {"inventory_adapter": TypeAdapter(Inventory)},
+            id="only-inventory-adapter",
+        ),
+    ],
+)
+def test_load_inventory_rejects_incomplete_adapter_pair_before_reading(
+    tmp_path: Path,
+    adapters: dict[str, TypeAdapter[DeviceInventory] | TypeAdapter[Inventory]],
+) -> None:
+    with patch.object(
+        Path, "read_text", side_effect=AssertionError("Unexpected inventory read")
+    ) as read:
+        with pytest.raises(
+            TypeError,
+            match="requires both device_inventory_adapter and inventory_adapter",
+        ):
+            load_inventory(tmp_path / "missing.yaml", **adapters)
+        read.assert_not_called()
 
 
 def test_load_inventory_wraps_validation_errors(tmp_path: Path) -> None:
