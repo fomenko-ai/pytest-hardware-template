@@ -120,14 +120,14 @@ TransportConfig = Annotated[
 ]
 
 
-class DeviceConfig(BaseModel):
+class DeviceConfig[TransportConfigT = TransportConfig](BaseModel):
     """Physical device and its connection configuration."""
 
     model_config = ConfigDict(extra="forbid")
 
     type: str
     model: str
-    transport: TransportConfig
+    transport: TransportConfigT
 
 
 class StandConfig(BaseModel):
@@ -140,13 +140,13 @@ class StandConfig(BaseModel):
     devices: dict[str, str]
 
 
-class DeviceInventory(BaseModel):
+class DeviceInventory[DeviceConfigT = DeviceConfig](BaseModel):
     """Physical device definitions loaded from a dedicated YAML file."""
 
     model_config = ConfigDict(extra="forbid")
 
     version: Literal[1]
-    devices: dict[str, DeviceConfig]
+    devices: dict[str, DeviceConfigT]
 
 
 class StandInventory(BaseModel):
@@ -159,13 +159,13 @@ class StandInventory(BaseModel):
     stands: dict[str, StandConfig]
 
 
-class Inventory(BaseModel):
+class Inventory[DeviceConfigT = DeviceConfig](BaseModel):
     """Top-level inventory with validated stand-to-device references."""
 
     model_config = ConfigDict(extra="forbid")
 
     version: Literal[1]
-    devices: dict[str, DeviceConfig]
+    devices: dict[str, DeviceConfigT]
     stands: dict[str, StandConfig]
 
     @model_validator(mode="after")

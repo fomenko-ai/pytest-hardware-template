@@ -11,7 +11,8 @@ Register physical equipment without leaking secrets or coupling tests to physica
 
 1. Read `AGENTS.md` completely and follow its approval and verification rules.
 2. Read `inventory/stands.yaml` and every path in `device_files`.
-3. Read `src/hardware_test/factory/devices.py` to discover supported inventory `type` values.
+3. Read `src/hardware_test/factory/devices.py` and any project factory/schema overrides to discover
+   supported inventory `type` values. See [custom entities](../../docs/custom-entities.md).
 4. Read inventory models and existing device entries to follow the current schema and naming.
 5. Determine the device ID, supported type, example-safe model, transport data, and credential
    reference. Ask for missing required values.
@@ -26,9 +27,10 @@ Register physical equipment without leaking secrets or coupling tests to physica
 
 ## Design and review
 
-1. Use only types already supported by `_DEVICE_TYPES`.
-2. Treat support for a new device class or type as a separate architectural change; do not extend
-   `_DEVICE_TYPES` implicitly.
+1. Use only types already supported by the active project schema and factory composition.
+2. For a new domain API use [add-custom-device](../add-custom-device/SKILL.md); for a new connection
+   method use [add-custom-transport](../add-custom-transport/SKILL.md). Do not extend `_DEVICE_TYPES`
+   implicitly.
 3. Store host, port, model, transport type, and credential reference in device inventory.
 4. Never store a password, private key, token, or real organization secret in YAML.
 5. Use documentation-only address ranges for template examples.

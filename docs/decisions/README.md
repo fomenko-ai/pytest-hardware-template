@@ -19,6 +19,12 @@ create records for routine implementation details.
 Decision records explain why a choice was made. Regular documentation remains the source for how
 the project currently works.
 
+## Accepted decisions
+
+- [0001: Prepare for library publication](0001-prepare-for-library-publication.md).
+- [0002: Separate runtime and reporting](0002-separate-runtime-and-reporting.md).
+- [0003: Explicit custom entity factories](0003-explicit-custom-entity-factories.md).
+
 ## Samples for template-based projects
 
 The files in `examples/` are starting points for projects created from this template. They are not

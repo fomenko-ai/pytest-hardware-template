@@ -122,6 +122,11 @@ serial port additionally uses the operating system's exclusive-open support wher
 
 ## Adding a transport
 
+For project-specific implementations, follow [custom devices and transports](custom-entities.md):
+define a project inventory model and inject a project transport factory into `StandFactory`.
+Keep these implementations outside `hardware_test`. The steps below describe transport behavior
+and adding a reusable built-in implementation when the template itself requires it.
+
 Add a concrete transport only for a current connection requirement:
 
 1. Implement the `Transport` methods without depending on device classes.

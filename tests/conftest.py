@@ -13,6 +13,7 @@ os.environ.setdefault("AGENT_NO_ANALYTICS", "1")
 import pytest
 
 from hardware_test.exceptions import HardwareTestError
+from hardware_test.factory import BuiltinDeviceFactory, BuiltinTransportFactory, StandFactory
 from hardware_test.inventory import Inventory, load_inventory
 from hardware_test.pytest_plugin import get_run_directory, get_run_metadata
 from hardware_test.settings import Settings
@@ -138,6 +139,15 @@ def _escape_property(value: str) -> str:
 def settings() -> Settings:
     """Load global runtime settings once per session."""
     return Settings()
+
+
+@pytest.fixture(scope="session")
+def stand_factory(settings: Settings) -> StandFactory:
+    """Provide the standard construction policy, overridable by a project."""
+    return StandFactory(
+        device_factory=BuiltinDeviceFactory(),
+        transport_factory=BuiltinTransportFactory(settings),
+    )
 
 
 @pytest.fixture(scope="session")

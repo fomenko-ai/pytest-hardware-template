@@ -6,6 +6,7 @@ from hardware_test.inventory.models import (
     PySerialOverSshTransportConfig,
     PySerialTransportConfig,
     SshConnectionInventoryConfig,
+    SshTransportConfig,
     TransportConfig,
 )
 from hardware_test.settings import ConsoleCredentialSettings, Settings
@@ -33,6 +34,11 @@ def create_transport(config: TransportConfig, settings: Settings) -> LockableTra
                 command_timeout=settings.command_timeout,
             )
         )
+
+    if not isinstance(
+        config, (SshTransportConfig, PicocomOverSshTransportConfig, PySerialOverSshTransportConfig)
+    ):
+        raise FactoryError(f"Unsupported transport configuration '{type(config).__name__}'")
 
     ssh = _create_ssh_config(config.ssh, settings)
     if isinstance(config, PicocomOverSshTransportConfig):
@@ -65,6 +71,17 @@ def create_transport(config: TransportConfig, settings: Settings) -> LockableTra
             command_timeout=settings.command_timeout,
         )
     )
+
+
+class BuiltinTransportFactory:
+    """Adapt built-in transport construction with constructor-injected settings."""
+
+    def __init__(self, settings: Settings) -> None:
+        self._settings = settings
+
+    def create(self, config: TransportConfig) -> LockableTransport:
+        """Resolve built-in transport configuration without connecting."""
+        return create_transport(config, self._settings)
 
 
 def _create_ssh_config(

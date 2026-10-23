@@ -133,6 +133,18 @@ libraries outside device APIs. See the [transport architecture](docs/transports.
 contracts, lifecycle, command flow, locking guarantees, and extension rules. Example device
 methods raise `NotImplementedError` until a project supplies its own protocol.
 
+### Custom devices and transports
+
+Keep project-specific equipment APIs, connection implementations, and configuration models in a
+project package outside `hardware_test`. Extend the typed inventory schema and inject project
+device and transport factories into `StandFactory`; built-in implementations remain available
+through delegation. Tests continue to use logical roles, and fixtures own connection cleanup.
+
+See [custom devices and transports](docs/custom-entities.md) for the complete flow, architecture
+diagrams, YAML and `.env` examples, factory composition, and pytest integration. The
+[executable example](docs/examples/custom_entities.py) is verified with fake clients and covers both
+built-in and custom device/transport combinations.
+
 ### Linux serial console transports
 
 `PicocomOverSshTransport` reaches a board's Linux serial console through `picocom` on a remote SSH
@@ -430,6 +442,8 @@ required.
 The repository includes focused skills under `skills/` for AI coding agents:
 
 - `add-inventory-device` registers physical equipment in inventory;
+- `add-custom-device` implements a project-owned device API, inventory model, and factory mapping;
+- `add-custom-transport` implements a project-owned transport, settings, and factory mapping;
 - `add-test-stand` maps equipment to logical stand roles;
 - `add-project-test` creates tests in the appropriate test layer;
 - `hardware-base-test` creates or updates shared command helpers and class-based hardware tests;

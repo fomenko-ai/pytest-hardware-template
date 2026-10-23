@@ -92,4 +92,4 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "PT", "ANN", "S", "PTH"]
 python-version = "3.14"
 
 [tool.ty.src]
-include = ["src", "tests"]
+include = ["src", "tests", "docs/examples"]

@@ -13,6 +13,7 @@ from hardware_test.inventory.models import (
     SshTransportConfig,
     StandConfig,
     StandInventory,
+    TransportConfig,
 )
 
 __all__ = [
@@ -27,6 +28,7 @@ __all__ = [
     "SshTransportConfig",
     "StandConfig",
     "StandInventory",
+    "TransportConfig",
     "get_stand",
     "load_inventory",
 ]
