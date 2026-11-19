@@ -17,10 +17,10 @@ from collections.abc import Iterator
 
 import pytest
 
+from hardware_test import BaseTest
 from hardware_test.logging import StepLogger
 from hardware_test.models import UnixCommand
 from hardware_test.stand import TestStand
-from tests.hardware.base import BaseTest
 
 
 @pytest.fixture
@@ -104,15 +104,15 @@ hide it behind a named method on `Dut` and call that domain method from the test
 
 When one hardware-test group repeatedly uses the same fixtures or helpers, its directory may have
 a local `base.py`. The local base class inherits from the shared `BaseTest`, while behavior that is
-specific to the group stays out of `tests/hardware/base.py`:
+specific to the group stays out of `src/hardware_test/base_test.py`:
 
 ```python
 # tests/hardware/recovery/base.py
 import pytest
 
+from hardware_test import BaseTest
 from hardware_test.devices import Dut
 from hardware_test.stand import TestStand
-from tests.hardware.base import BaseTest
 
 
 class RecoveryBaseTest(BaseTest):

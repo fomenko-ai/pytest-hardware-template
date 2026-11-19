@@ -31,12 +31,16 @@ physical hardware.
 6. Use registered pytest markers and preserve `--strict-markers` compatibility.
 7. Use `yield` with `try/finally` for fixtures that allocate resources or change device state.
 8. When a hardware-test group needs shared behavior or fixtures, place a local `base.py` in that
-   group's directory and inherit its custom base class from `tests.hardware.base.BaseTest`.
+   group's directory and inherit its custom base class from `hardware_test.BaseTest`.
    A custom base class may define typed class-method fixtures with `@pytest.fixture(scope="class")`
    above `@classmethod`; use `cls` instead of an instance `self` parameter, resolve devices from
    the injected `TestStand` by logical role, and never keep mutable runtime state on the class.
-9. Import the group-specific base in test modules under the common local name `BaseTest`, for
-   example `from tests.hardware.recovery.base import RecoveryBaseTest as BaseTest`.
+9. Before creating a hardware test, check for a `base.py` module in the corresponding test group
+   directory. If it defines a group-specific base class inheriting from `hardware_test.BaseTest`,
+   use that class and import it under the local name `BaseTest`, for example
+   `from tests.hardware.recovery.base import RecoveryBaseTest as BaseTest`. Otherwise, use
+   `from hardware_test import BaseTest`. Do not create a group-specific base class unless shared
+   behavior or fixtures require it. Prefer plain pytest functions when inheritance adds no value.
 10. Show complete representative test code and list every file to create or modify.
 11. Request explicit approval before modifying files.
 

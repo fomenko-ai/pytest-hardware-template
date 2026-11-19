@@ -4,10 +4,10 @@ import logging
 
 import pytest
 
+from hardware_test import BaseTest
 from hardware_test.devices import Dut
 from hardware_test.models import CommandResult, UnixCommand
 from tests.fakes import FakeTransport
-from tests.hardware.base import BaseTest
 
 
 def make_subject(result: CommandResult) -> tuple[BaseTest, Dut, FakeTransport]:
@@ -23,7 +23,7 @@ def test_run_command_logs_and_delegates_to_dut(
     expected = CommandResult(stdout="ready\n", stderr="", exit_code=0)
     subject, dut, transport = make_subject(expected)
 
-    with caplog.at_level(logging.INFO, logger="tests.hardware.base"):
+    with caplog.at_level(logging.INFO, logger="hardware_test.base_test"):
         command = UnixCommand(query="show status", timeout=3.0)
         result = subject.run_command(
             dut,
@@ -46,7 +46,7 @@ def test_run_command_truncates_long_output_in_log(
     subject, dut, _ = make_subject(expected)
     monkeypatch.setattr(BaseTest, "_LOG_OUTPUT_LIMIT", 5)
 
-    with caplog.at_level(logging.INFO, logger="tests.hardware.base"):
+    with caplog.at_level(logging.INFO, logger="hardware_test.base_test"):
         result = subject.run_command(dut, UnixCommand(query="show verbose status"))
 
     assert result == expected

@@ -87,6 +87,7 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "PT", "ANN", "S", "PTH"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101"]
+"src/hardware_test/base_test.py" = ["S101"]
 
 [tool.ty.environment]
 python-version = "3.14"

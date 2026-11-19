@@ -92,8 +92,9 @@ Follow these constraints:
 
 ### Hardware Base Test
 
-1. Keep the shared `BaseTest` class in `tests/hardware/base.py`; do not expose it from the
-   production `hardware_test` package.
+1. Keep the shared `BaseTest` class in `src/hardware_test/base_test.py` and expose it through
+   `from hardware_test import BaseTest`. It provides reusable test helpers; device APIs must not
+   depend on it.
 2. Use `BaseTest` only for class-based hardware tests that repeatedly execute, log, or validate DUT
    command-line operations. Prefer plain pytest functions when inheritance adds no value.
 3. Implement reusable helpers as class methods. Pass a `Dut` explicitly and do not store a
@@ -117,13 +118,17 @@ Follow these constraints:
 10. Unit-test `BaseTest` with fake transports only. Do not require `--stand`, network access, or
     physical equipment for its tests.
 11. When one hardware-test group needs shared behavior or fixtures, place a local `base.py` in
-    that group's directory. Its custom base class inherits from `tests.hardware.base.BaseTest`.
+    that group's directory. Its custom base class inherits from `hardware_test.BaseTest`.
 12. A group-local base class may define typed class-scoped fixtures as class methods. Put
     `@pytest.fixture(scope="class")` above `@classmethod`, accept `cls` instead of `self`, and
     obtain devices from the injected `TestStand` through logical roles. Do not store runtime state
     on the class; use `yield` with `try/finally` when a fixture changes device state.
-13. In test modules, import the group-specific base under the common local name `BaseTest`, for
-    example `from tests.hardware.recovery.base import RecoveryBaseTest as BaseTest`.
+13. Before creating a hardware test, check for a `base.py` module in the corresponding test group
+    directory. If it defines a group-specific base class inheriting from `hardware_test.BaseTest`,
+    use that class and import it under the local name `BaseTest`, for example
+    `from tests.hardware.recovery.base import RecoveryBaseTest as BaseTest`. Otherwise, use
+    `from hardware_test import BaseTest`. Do not create a group-specific base class unless shared
+    behavior or fixtures require it. Prefer plain pytest functions when inheritance adds no value.
 
 ### Step Logging
 

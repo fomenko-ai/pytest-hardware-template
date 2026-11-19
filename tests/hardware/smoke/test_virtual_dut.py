@@ -4,10 +4,10 @@ import json
 
 import pytest
 
+from hardware_test import BaseTest
 from hardware_test.logging import StepLogger
 from hardware_test.models import UnixCommand
 from hardware_test.stand import TestStand
-from tests.hardware.base import BaseTest
 
 
 @pytest.mark.virtual_stand

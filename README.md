@@ -164,7 +164,7 @@ numbered scenario steps in the test itself, and keep setup and cleanup in `yield
 [multi-device stand example](docs/multi-device-stands.md).
 
 When one test group needs shared fixtures or helpers, add a local `base.py` under that group's
-directory. Its class inherits from the shared `tests.hardware.base.BaseTest` and may expose
+directory. Its class inherits from the shared `hardware_test.BaseTest` and may expose
 class-scoped fixtures as class methods. Test modules import the specialized class under the common
 local name `BaseTest`:
 

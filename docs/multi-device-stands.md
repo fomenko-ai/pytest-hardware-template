@@ -79,9 +79,9 @@ class-scoped fixture methods. Put this class in the test group's own `base.py`:
 # tests/hardware/serial_board/base.py
 import pytest
 
+from hardware_test import BaseTest
 from hardware_test.devices import Dut
 from hardware_test.stand import TestStand
-from tests.hardware.base import BaseTest
 
 
 class SerialBoardBaseTest(BaseTest):

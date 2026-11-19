@@ -1,11 +1,11 @@
 ---
 name: hardware-base-test
-description: Create or modify the shared BaseTest command helpers and class-based hardware tests in this pytest hardware automation repository. Use when adding reusable command execution, standard INFO logging, CommandResult assertions, fixture-managed state, or unit coverage for tests/hardware/base.py.
+description: Create or modify the shared BaseTest command helpers and class-based hardware tests in this pytest hardware automation repository. Use when adding reusable command execution, standard INFO logging, CommandResult assertions, fixture-managed state, or unit coverage for src/hardware_test/base_test.py.
 ---
 
 # Hardware Base Test
 
-Keep reusable hardware-test behavior in `tests/hardware/base.py` and follow the repository
+Keep reusable hardware-test behavior in `src/hardware_test/base_test.py` and follow the repository
 `AGENTS.md` rules.
 
 ## Workflow
@@ -18,14 +18,18 @@ Keep reusable hardware-test behavior in `tests/hardware/base.py` and follow the 
    class or global runtime state.
 4. When one hardware-test group needs shared behavior or fixtures, allow a group-local `base.py`
    inside that group's directory. Its custom base class must inherit from
-   `tests.hardware.base.BaseTest`; do not move project-specific behavior into the shared helper.
+   `hardware_test.BaseTest`; do not move project-specific behavior into the shared helper.
 5. A group-local base class may declare typed pytest fixtures as class methods with
    `@pytest.fixture(scope="class")` above `@classmethod`; use `cls`, not an instance `self`
    parameter. Obtain devices from the injected `TestStand` through logical roles, return or yield
    them to tests, and never store the stand, devices, or other mutable runtime state on the class.
    Fixtures that change device state must use `yield` with `try/finally`.
-6. Import a group-specific base in test modules under the common local name `BaseTest`, for
-   example `from tests.hardware.recovery.base import RecoveryBaseTest as BaseTest`.
+6. Before creating a hardware test, check for a `base.py` module in the corresponding test group
+   directory. If it defines a group-specific base class inheriting from `hardware_test.BaseTest`,
+   use that class and import it under the local name `BaseTest`, for example
+   `from tests.hardware.recovery.base import RecoveryBaseTest as BaseTest`. Otherwise, use
+   `from hardware_test import BaseTest`. Do not create a group-specific base class unless shared
+   behavior or fixtures require it. Prefer plain pytest functions when inheritance adds no value.
 7. Use `run_command` for logging and execution, `check_command` for assertions, and
    `run_and_check_command` for their immediate composition. Return `CommandResult` when callers
    may need additional test-specific checks.
